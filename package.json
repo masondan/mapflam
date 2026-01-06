@@ -1,0 +1,24 @@
+{
+  "name": "mapflam",
+  "version": "0.1.0",
+  "description": "Mobile-first web app for journalists to create locator maps",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.2.0",
+    "@types/leaflet": "^1.9.8",
+    "svelte": "^5.0.0",
+    "svelte-check": "^3.8.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "html2canvas": "^1.4.1"
+  }
+}
