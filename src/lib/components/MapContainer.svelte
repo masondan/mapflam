@@ -102,8 +102,16 @@
         // Update existing marker
         const leafletMarker = leafletMarkers.get(marker.id)!;
         leafletMarker.setLatLng([marker.lat, marker.lng]);
-        // Update popup if needed
-        updateMarkerPopup(leafletMarker, marker);
+        
+        // Re-render icon if any visual properties changed
+        const icon = L.divIcon({
+          html: createMarkerHTML(marker),
+          iconSize: [24, 24],
+          iconAnchor: [12, 24],
+          popupAnchor: [0, -24],
+          className: 'custom-marker',
+        });
+        leafletMarker.setIcon(icon);
       } else {
         // Create new marker
         const leafletMarker = createLeafletMarker(marker);
@@ -138,6 +146,13 @@
         }
         return markerList;
       });
+    });
+
+    // Click to edit
+    leafletMarker.on('click', () => {
+      // Dispatch event for app to handle
+      const event = new CustomEvent('marker-click', { detail: { markerId: marker.id } });
+      window.dispatchEvent(event);
     });
 
     return leafletMarker;

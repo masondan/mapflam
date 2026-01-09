@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type { SavedMap } from './lib/types';
   import {
     activeTab,
     markers,
@@ -8,18 +9,30 @@
     mapCenter,
     mapZoom,
   } from './lib/stores';
-  import { loadSavedMaps } from './lib/services/persistence';
+  import { loadSavedMaps, saveMap } from './lib/services/persistence';
+  import { exportMap } from './lib/services/export';
   import MapContainer from './lib/components/MapContainer.svelte';
   import RatioSelector from './lib/components/RatioSelector.svelte';
   import BaseMapSelector from './lib/components/BaseMapSelector.svelte';
+  import PinEditor from './lib/components/PinEditor.svelte';
+  import SavedTab from './lib/components/SavedTab.svelte';
 
   let autoSaveTimeout: ReturnType<typeof setTimeout>;
   let currentTab: 'create' | 'saved' = 'create';
   let currentMarkers: any[] = [];
+  let pinEditorRef: PinEditor;
+  let currentFormat: string = 'square';
+  let currentBaseMap: string = 'positron';
+  let currentCenter: any = { lat: 6.5244, lng: 3.3792 };
+  let currentZoom: number = 12;
 
   // Subscribe to stores
   $: activeTab.subscribe((tab) => (currentTab = tab));
   $: markers.subscribe((m) => (currentMarkers = m));
+  $: selectedFormat.subscribe((f) => (currentFormat = f));
+  $: selectedBaseMap.subscribe((b) => (currentBaseMap = b));
+  $: mapCenter.subscribe((c) => (currentCenter = c));
+  $: mapZoom.subscribe((z) => (currentZoom = z));
 
   onMount(() => {
     // Load saved maps on app start
@@ -34,8 +47,56 @@
       }, 1000);
     });
 
-    return unsubscribe;
+    // Handle marker click (edit)
+    const handleMarkerClick = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const markerId = customEvent.detail.markerId;
+      const pin = $markers.find((m) => m.id === markerId);
+      if (pin && pinEditorRef) {
+        pinEditorRef.initPin(pin);
+      }
+    };
+
+    window.addEventListener('marker-click', handleMarkerClick);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('marker-click', handleMarkerClick);
+    };
   });
+
+  function openAddPin() {
+    if (pinEditorRef) {
+      pinEditorRef.initPin();
+    }
+  }
+
+  async function handleExport() {
+    await exportMap('#map', currentFormat as any, `mapflam_${currentFormat}_${new Date().toISOString().split('T')[0]}.png`);
+  }
+
+  function handleNewMap() {
+    if (confirm('Save current map before creating a new one?')) {
+      // Save current state
+      const mapData: SavedMap = {
+        id: Date.now().toString(),
+        name: `Map ${new Date().toLocaleString()}`,
+        createdAt: Date.now(),
+        state: {
+          markers: $markers,
+          selectedFormat: currentFormat as any,
+          selectedBaseMap: currentBaseMap as any,
+          mapCenter: currentCenter,
+          mapZoom: currentZoom,
+        },
+        pinCount: $markers.length,
+        thumbnail: '',
+      };
+      saveMap(mapData);
+    }
+    // Reset
+    markers.set([]);
+  }
 </script>
 
 <div class="app-container">
@@ -78,16 +139,21 @@
           </div>
 
           <div class="control-group">
-            <button class="primary-button">+ Add Pin</button>
+            <button class="primary-button" on:click={openAddPin}>+ Add Pin</button>
           </div>
 
           {#if currentMarkers.length > 0}
+            <div class="export-controls">
+              <button class="export-button" on:click={handleExport}>⬇ Download PNG</button>
+              <button class="secondary-button" on:click={handleNewMap}>→ New Map</button>
+            </div>
+
             <div class="pin-list">
               <h3>Pins ({currentMarkers.length})</h3>
               {#each currentMarkers as marker (marker.id)}
                 <div class="pin-item">
                   <span>{marker.name}</span>
-                  <button class="icon-button">Edit</button>
+                  <button class="icon-button" on:click={() => pinEditorRef.initPin(marker)}>Edit</button>
                 </div>
               {/each}
             </div>
@@ -95,12 +161,11 @@
         </div>
       </div>
     {:else if currentTab === 'saved'}
-      <div class="saved-tab">
-        <h2>Saved Maps</h2>
-        <p>Coming soon...</p>
-      </div>
+      <SavedTab />
     {/if}
   </main>
+
+  <PinEditor bind:this={pinEditorRef} />
 </div>
 
 <style>
@@ -289,14 +354,41 @@
     color: var(--color-white);
   }
 
-  .saved-tab {
-    text-align: center;
-    padding: var(--spacing-lg);
+  .export-controls {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-direction: column;
   }
 
-  .saved-tab h2 {
-    margin: 0 0 var(--spacing-md) 0;
-    font-size: 18px;
-    color: var(--color-text-dark);
+  .export-button {
+    padding: var(--spacing-md);
+    border: none;
+    border-radius: var(--radius-md);
+    background-color: #02441f;
+    color: var(--color-white);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+
+  .export-button:hover {
+    background-color: #1a5c37;
+  }
+
+  .secondary-button {
+    padding: var(--spacing-md);
+    border: none;
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg-panel);
+    color: var(--color-text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+
+  .secondary-button:hover {
+    background-color: #d9d9d9;
   }
 </style>
