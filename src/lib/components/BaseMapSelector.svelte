@@ -2,10 +2,22 @@
   import { selectedBaseMap } from '../stores';
   import type { BaseMap } from '../types';
 
-  const baseMaps: { label: string; value: BaseMap }[] = [
-    { label: 'Positron', value: 'positron' },
-    { label: 'No Labels', value: 'positron-nolabels' },
-    { label: 'Toner', value: 'toner' },
+  const baseMaps: { label: string; value: BaseMap; thumbnailUrl: string }[] = [
+    { 
+      label: 'Positron', 
+      value: 'positron',
+      thumbnailUrl: 'https://a.basemaps.cartocdn.com/light_all/2/2/0.png'
+    },
+    { 
+      label: 'No Labels', 
+      value: 'positron-nolabels',
+      thumbnailUrl: 'https://a.basemaps.cartocdn.com/light_nolabels/2/2/0.png'
+    },
+    { 
+      label: 'Toner', 
+      value: 'toner',
+      thumbnailUrl: 'https://tile.openstreetmap.de/tiles/osmde/2/2/0.png'
+    },
   ];
 
   let isOpen = false;
@@ -58,10 +70,13 @@
             class="thumbnail-card"
             class:active={$selectedBaseMap === baseMap.value}
             on:click={() => selectMap(baseMap.value)}
+            aria-label="Select {baseMap.label} basemap"
           >
-            <div class="thumbnail-preview">
-              <span class="thumbnail-text">{baseMap.label}</span>
-            </div>
+            <div 
+              class="thumbnail-preview"
+              style="background-image: url('{baseMap.thumbnailUrl}')"
+            ></div>
+            <span class="thumbnail-label">{baseMap.label}</span>
           </button>
         {/each}
       </div>
@@ -128,10 +143,11 @@
 
   .thumbnail-card {
     flex: 1;
-    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
     border: 1px solid #999999;
     border-radius: var(--radius-md);
-    background-color: var(--color-bg-panel);
+    background-color: var(--color-white);
     cursor: pointer;
     transition: all 200ms ease;
     padding: 0;
@@ -148,17 +164,20 @@
   }
 
   .thumbnail-preview {
+    flex: 1;
     width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    aspect-ratio: 1;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     background-color: var(--color-bg-panel);
   }
 
-  .thumbnail-text {
+  .thumbnail-label {
+    padding: 8px;
     font-size: 11px;
     color: var(--color-text-primary);
     text-align: center;
+    background-color: var(--color-white);
   }
 </style>

@@ -1,34 +1,41 @@
 <script lang="ts">
   import { v4 as uuidv4 } from 'uuid';
   import { get } from 'svelte/store';
-  import { markers, editingPinId, mapCenter, leafletMap } from '../stores';
+  import { markers, editingPinId, mapCenter, leafletMap, insetConfig } from '../stores';
   import { COLOR_PALETTE, ICON_FILES } from '../types';
   import type { Marker, IconType, PinSize, LabelSize } from '../types';
   import SearchBar from './SearchBar.svelte';
 
-  let isExpanded = false;
-  let currentPin: Marker | null = null;
   let markerList: Marker[] = [];
-  let isDraggingSize = false;
-  let isDraggingOpacity = false;
-  let isDraggingLabelSize = false;
-  let isDraggingLabelOpacity = false;
-  let showLabelControls = false;
+  let currentEditingId: string | null = null;
+  let showLabelControls: { [key: string]: boolean } = {};
+  let isDraggingSize: { [key: string]: boolean } = {};
+  let isDraggingOpacity: { [key: string]: boolean } = {};
+  let isDraggingLabelSize: { [key: string]: boolean } = {};
+  let isDraggingLabelOpacity: { [key: string]: boolean } = {};
 
   markers.subscribe((m) => {
     markerList = m;
+  });
+
+  editingPinId.subscribe((id) => {
+    currentEditingId = id;
   });
 
   export function initPin(pin?: Marker) {
     let center = { lat: 6.5244, lng: 3.3792 };
     mapCenter.subscribe((c) => (center = c))();
 
+    insetConfig.update((c) => ({ ...c, enabled: false }));
+
     if (pin) {
-      currentPin = { ...pin };
       editingPinId.set(pin.id);
-      showLabelControls = !!pin.label;
+      if (!showLabelControls[pin.id]) {
+        showLabelControls[pin.id] = !!pin.label;
+      }
     } else {
-      currentPin = {
+      // Create new pin
+      const newPin: Marker = {
         id: uuidv4(),
         lat: center.lat,
         lng: center.lng,
@@ -38,135 +45,145 @@
         color: COLOR_PALETTE[0],
         name: `Pin ${markerList.length + 1}`,
       };
-      editingPinId.set(currentPin.id);
-      showLabelControls = false;
-      savePin();
-    }
-    isExpanded = true;
-  }
-
-  function toggleExpand() {
-    isExpanded = !isExpanded;
-  }
-
-  function centerMapOnPin() {
-    const map = get(leafletMap);
-    if (currentPin && map) {
-      map.setView([currentPin.lat, currentPin.lng], map.getZoom());
-      mapCenter.set({ lat: currentPin.lat, lng: currentPin.lng });
+      markers.update((list) => [...list, newPin]);
+      editingPinId.set(newPin.id);
+      showLabelControls[newPin.id] = false;
     }
   }
 
-  function savePin() {
-    if (!currentPin) return;
-
-    const pinToSave = { ...currentPin };
-    markers.update((list) => {
-      const existingIndex = list.findIndex((m) => m.id === pinToSave.id);
-      if (existingIndex >= 0) {
-        list[existingIndex] = pinToSave;
+  function toggleExpand(pinId: string) {
+    const pin = markerList.find((m) => m.id === pinId);
+    if (pin) {
+      if (currentEditingId === pinId) {
+        editingPinId.set(null);
       } else {
-        list.push(pinToSave);
+        editingPinId.set(pinId);
+        insetConfig.update((c) => ({ ...c, enabled: false }));
       }
-      return [...list];
+    }
+  }
+
+  function centerMapOnPin(pinId: string) {
+    const map = get(leafletMap);
+    const pin = markerList.find((m) => m.id === pinId);
+    if (pin && map) {
+      map.setView([pin.lat, pin.lng], map.getZoom());
+      mapCenter.set({ lat: pin.lat, lng: pin.lng });
+    }
+  }
+
+  function handleSearch(
+    pinId: string,
+    e: CustomEvent<{ lat: number; lng: number; name: string }>
+  ) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) {
+        pin.lat = e.detail.lat;
+        pin.lng = e.detail.lng;
+        pin.name = e.detail.name.split(',')[0];
+      }
+      return list;
+    });
+    const map = get(leafletMap);
+    if (map) {
+      map.setView([e.detail.lat, e.detail.lng], map.getZoom());
+      mapCenter.set({ lat: e.detail.lat, lng: e.detail.lng });
+    }
+  }
+
+  function placeManualPin(pinId: string) {
+    let center = { lat: 6.5244, lng: 3.3792 };
+    mapCenter.subscribe((c) => (center = c))();
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) {
+        pin.lat = center.lat;
+        pin.lng = center.lng;
+      }
+      return list;
     });
   }
 
-  function handleSearch(e: CustomEvent<{ lat: number; lng: number; name: string }>) {
-    if (currentPin) {
-      currentPin = {
-        ...currentPin,
-        lat: e.detail.lat,
-        lng: e.detail.lng,
-        name: e.detail.name.split(',')[0],
-      };
-      savePin();
-      const map = get(leafletMap);
-      if (map) {
-        map.setView([e.detail.lat, e.detail.lng], map.getZoom());
-        mapCenter.set({ lat: e.detail.lat, lng: e.detail.lng });
+  function updateIcon(pinId: string, icon: IconType) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) pin.icon = icon;
+      return list;
+    });
+  }
+
+  function updateSize(pinId: string, size: PinSize) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) pin.size = size;
+      return list;
+    });
+  }
+
+  function updateOpacity(pinId: string, opacity: number) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) pin.opacity = opacity;
+      return list;
+    });
+  }
+
+  function updateColor(pinId: string, color: string) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) {
+        pin.color = color;
+        if (pin.label) {
+          pin.label.bgColor = color;
+        }
       }
-    }
+      return list;
+    });
   }
 
-  function placeManualPin() {
-    if (currentPin) {
-      let center = { lat: 6.5244, lng: 3.3792 };
-      mapCenter.subscribe((c) => (center = c))();
-      currentPin = { ...currentPin, lat: center.lat, lng: center.lng };
-      savePin();
-    }
+  function updateName(pinId: string, name: string) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) pin.name = name;
+      return list;
+    });
   }
 
-  function updateIcon(icon: IconType) {
-    if (currentPin) {
-      currentPin = { ...currentPin, icon };
-      savePin();
-    }
-  }
-
-  function updateSize(size: PinSize) {
-    if (currentPin) {
-      currentPin = { ...currentPin, size };
-      savePin();
-    }
-  }
-
-  function updateOpacity(opacity: number) {
-    if (currentPin) {
-      currentPin = { ...currentPin, opacity };
-      savePin();
-    }
-  }
-
-  function updateColor(color: string) {
-    if (currentPin) {
-      currentPin = { ...currentPin, color };
-      if (currentPin.label) {
-        currentPin = { ...currentPin, label: { ...currentPin.label, bgColor: color } };
+  function toggleLabel(pinId: string) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) {
+        if (pin.label) {
+          delete pin.label;
+          showLabelControls[pinId] = false;
+        } else {
+          pin.label = {
+            text: '',
+            size: 'medium',
+            bgColor: pin.color,
+            bgOpacity: 100,
+            offsetX: 0,
+            offsetY: 0,
+          };
+          showLabelControls[pinId] = true;
+        }
       }
-      savePin();
-    }
+      return list;
+    });
   }
 
-  function updateName(name: string) {
-    if (currentPin) {
-      currentPin = { ...currentPin, name };
-      savePin();
-    }
+  function updateLabelText(pinId: string, text: string) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin?.label) {
+        pin.label.text = text;
+      }
+      return list;
+    });
   }
 
-  function toggleLabel() {
-    if (!currentPin) return;
-    if (showLabelControls) {
-      const { label, ...rest } = currentPin;
-      currentPin = rest as Marker;
-      showLabelControls = false;
-    } else {
-      currentPin = {
-        ...currentPin,
-        label: {
-          text: '',
-          size: 'medium',
-          bgColor: currentPin.color,
-          bgOpacity: 100,
-          offsetX: 0,
-          offsetY: 0,
-        },
-      };
-      showLabelControls = true;
-    }
-    savePin();
-  }
-
-  function updateLabelText(text: string) {
-    if (currentPin?.label) {
-      currentPin = { ...currentPin, label: { ...currentPin.label, text } };
-      savePin();
-    }
-  }
-
-  function handleLabelKeydown(e: KeyboardEvent) {
+  function handleLabelKeydown(pinId: string, e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const textarea = e.currentTarget as HTMLTextAreaElement;
@@ -174,59 +191,72 @@
       const end = textarea.selectionEnd;
       const text = textarea.value;
       const newText = text.substring(0, start) + '\n' + text.substring(end);
-      updateLabelText(newText);
+      updateLabelText(pinId, newText);
       setTimeout(() => {
         textarea.selectionStart = textarea.selectionEnd = start + 1;
       }, 0);
     }
   }
 
-  function updateLabelSize(size: LabelSize) {
-    if (currentPin?.label) {
-      currentPin = { ...currentPin, label: { ...currentPin.label, size } };
-      savePin();
-    }
+  function updateLabelSize(pinId: string, size: LabelSize) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin?.label) {
+        pin.label.size = size;
+      }
+      return list;
+    });
   }
 
-  function updateLabelBgColor(color: string) {
-    if (currentPin?.label) {
-      currentPin = { ...currentPin, label: { ...currentPin.label, bgColor: color } };
-      savePin();
-    }
+  function updateLabelBgColor(pinId: string, color: string) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin?.label) {
+        pin.label.bgColor = color;
+      }
+      return list;
+    });
   }
 
-  function updateLabelBgOpacity(opacity: number) {
-    if (currentPin?.label) {
-      currentPin = { ...currentPin, label: { ...currentPin.label, bgOpacity: opacity } };
-      savePin();
-    }
+  function updateLabelBgOpacity(pinId: string, opacity: number) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin?.label) {
+        pin.label.bgOpacity = opacity;
+      }
+      return list;
+    });
   }
 
-  function nudgeLabel(direction: 'left' | 'right' | 'up' | 'down') {
-    if (!currentPin?.label) return;
-    const step = 4;
-    let { offsetX, offsetY } = currentPin.label;
-    switch (direction) {
-      case 'left': offsetX -= step; break;
-      case 'right': offsetX += step; break;
-      case 'up': offsetY -= step; break;
-      case 'down': offsetY += step; break;
-    }
-    currentPin = { ...currentPin, label: { ...currentPin.label, offsetX, offsetY } };
-    savePin();
+  function nudgeLabel(
+    pinId: string,
+    direction: 'left' | 'right' | 'up' | 'down'
+  ) {
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin?.label) {
+        const step = 4;
+        switch (direction) {
+          case 'left':
+            pin.label.offsetX -= step;
+            break;
+          case 'right':
+            pin.label.offsetX += step;
+            break;
+          case 'up':
+            pin.label.offsetY -= step;
+            break;
+          case 'down':
+            pin.label.offsetY += step;
+            break;
+        }
+      }
+      return list;
+    });
   }
 
-  function deletePin() {
-    if (!currentPin) return;
-    const idToDelete = currentPin.id;
-    markers.update((list) => list.filter((m) => m.id !== idToDelete));
-    currentPin = null;
-    editingPinId.set(null);
-  }
-
-  export function close() {
-    currentPin = null;
-    isExpanded = false;
+  function deletePin(pinId: string) {
+    markers.update((list) => list.filter((m) => m.id !== pinId));
     editingPinId.set(null);
   }
 
@@ -241,210 +271,223 @@
   }
 </script>
 
-{#if currentPin}
+{#if markerList.length > 0}
   <div class="pin-editor">
-    <div class="pin-bar">
-      <button class="toggle-btn" on:click={toggleExpand} aria-label={isExpanded ? 'Collapse' : 'Expand'}>
-        <img src="/icons/{isExpanded ? 'icon-collapse.svg' : 'icon-expand.svg'}" alt="" />
-      </button>
-      <input
-        type="text"
-        class="pin-name-input"
-        value={currentPin.name}
-        on:input={(e) => updateName(e.currentTarget.value)}
-      />
-      <button class="center-btn" on:click={centerMapOnPin} aria-label="Center map on this pin">
-        <img src="/icons/icon-center.svg" alt="" />
-      </button>
-    </div>
-
-    {#if isExpanded}
-      <div class="pin-card">
-        <div class="search-row">
-          <div class="search-wrapper">
-            <SearchBar on:select={handleSearch} />
-          </div>
-          <button class="pushpin-btn" on:click={placeManualPin} aria-label="Place pin manually">
-            <img src="/icons/icon-pushpin-fill.svg" alt="" />
-          </button>
-        </div>
-
-        <div class="icon-selector">
-          {#each iconTypes as icon}
-            <button
-              class="icon-btn"
-              class:active={currentPin.icon === icon}
-              style="--active-color: {currentPin.color}"
-              on:click={() => updateIcon(icon)}
-              aria-label="Select {icon}"
-            >
-              <img src="/icons/{ICON_FILES[icon]}" alt={icon} class:colored={currentPin.icon === icon} style="--icon-color: {currentPin.color}" />
-            </button>
-          {/each}
-        </div>
-
-        <div class="slider-group">
-          <span class="slider-label">Pin size</span>
-          <div class="slider-wrapper">
-            <input
-              type="range"
-              min="1"
-              max="5"
-              step="1"
-              value={currentPin.size}
-              on:input={(e) => updateSize(parseInt(e.currentTarget.value) as PinSize)}
-              on:mousedown={() => (isDraggingSize = true)}
-              on:mouseup={() => (isDraggingSize = false)}
-              on:touchstart={() => (isDraggingSize = true)}
-              on:touchend={() => (isDraggingSize = false)}
-              class="slider"
-            />
-            {#if isDraggingSize}
-              <span class="slider-feedback">{currentPin.size}</span>
-            {/if}
-          </div>
-        </div>
-
-        <div class="slider-group">
-          <span class="slider-label">Opacity</span>
-          <div class="slider-wrapper">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="10"
-              value={currentPin.opacity}
-              on:input={(e) => updateOpacity(parseInt(e.currentTarget.value))}
-              on:mousedown={() => (isDraggingOpacity = true)}
-              on:mouseup={() => (isDraggingOpacity = false)}
-              on:touchstart={() => (isDraggingOpacity = true)}
-              on:touchend={() => (isDraggingOpacity = false)}
-              class="slider"
-            />
-            {#if isDraggingOpacity}
-              <span class="slider-feedback">{currentPin.opacity}%</span>
-            {/if}
-          </div>
-        </div>
-
-        <div class="color-row">
-          {#each COLOR_PALETTE as color}
-            <button
-              class="color-btn"
-              class:active={currentPin.color === color}
-              class:white={color === '#FFFFFF'}
-              style="background-color: {color}"
-              on:click={() => updateColor(color)}
-              aria-label="Select {color} color"
-            ></button>
-          {/each}
-        </div>
-
-        <div class="toggle-row">
-          <span class="toggle-label">Pin label</span>
+    {#each markerList as pin (pin.id)}
+      <div class="pin-container">
+        <div class="pin-bar">
           <button
-            class="toggle-switch"
-            class:active={showLabelControls}
-            on:click={toggleLabel}
-            aria-label="Toggle pin label"
+            class="toggle-btn"
+            on:click={() => toggleExpand(pin.id)}
+            aria-label={currentEditingId === pin.id ? 'Collapse' : 'Expand'}
           >
-            <span class="toggle-knob"></span>
+            <img
+              src="/icons/{currentEditingId === pin.id
+                ? 'icon-collapse.svg'
+                : 'icon-expand.svg'}"
+              alt=""
+            />
+          </button>
+          <input
+            type="text"
+            class="pin-name-input"
+            value={pin.name}
+            on:input={(e) => updateName(pin.id, e.currentTarget.value)}
+          />
+          <button class="center-btn" on:click={() => centerMapOnPin(pin.id)} aria-label="Center map on this pin">
+            <img src="/icons/icon-center.svg" alt="" />
           </button>
         </div>
 
-        {#if showLabelControls && currentPin.label}
-           <div class="label-section">
-             <textarea
-               class="label-input"
-               placeholder="Add label text"
-               value={currentPin.label.text}
-               on:input={(e) => updateLabelText(e.currentTarget.value)}
-               on:keydown={handleLabelKeydown}
-             />
-
-            <div class="slider-group">
-              <span class="slider-label">Label size</span>
-              <div class="slider-wrapper">
-                <input
-                  type="range"
-                  min="1"
-                  max="3"
-                  step="1"
-                  value={getLabelSizeValue(currentPin.label.size)}
-                  on:input={(e) => updateLabelSize(setLabelSizeFromValue(parseInt(e.currentTarget.value)))}
-                  on:mousedown={() => (isDraggingLabelSize = true)}
-                  on:mouseup={() => (isDraggingLabelSize = false)}
-                  on:touchstart={() => (isDraggingLabelSize = true)}
-                  on:touchend={() => (isDraggingLabelSize = false)}
-                  class="slider"
-                />
-                {#if isDraggingLabelSize}
-                  <span class="slider-feedback">{currentPin.label.size}</span>
-                {/if}
-              </div>
+        {#if currentEditingId === pin.id}
+        <div class="pin-card">
+          <div class="search-row">
+            <div class="search-wrapper">
+              <SearchBar on:select={(e) => handleSearch(pin.id, e)} />
             </div>
+            <button class="pushpin-btn" on:click={() => placeManualPin(pin.id)} aria-label="Place pin manually">
+              <img src="/icons/icon-pushpin-fill.svg" alt="" />
+            </button>
+          </div>
 
-            <div class="slider-group">
-              <span class="slider-label">Opacity</span>
-              <div class="slider-wrapper">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="10"
-                  value={currentPin.label.bgOpacity}
-                  on:input={(e) => updateLabelBgOpacity(parseInt(e.currentTarget.value))}
-                  on:mousedown={() => (isDraggingLabelOpacity = true)}
-                  on:mouseup={() => (isDraggingLabelOpacity = false)}
-                  on:touchstart={() => (isDraggingLabelOpacity = true)}
-                  on:touchend={() => (isDraggingLabelOpacity = false)}
-                  class="slider"
-                />
-                {#if isDraggingLabelOpacity}
-                  <span class="slider-feedback">{currentPin.label.bgOpacity}%</span>
-                {/if}
-              </div>
-            </div>
+          <div class="icon-selector">
+            {#each iconTypes as icon}
+              <button
+                class="icon-btn"
+                class:active={pin.icon === icon}
+                style="--active-color: {pin.color}"
+                on:click={() => updateIcon(pin.id, icon)}
+                aria-label="Select {icon}"
+              >
+                <img src="/icons/{ICON_FILES[icon]}" alt={icon} style="--icon-color: {pin.color}" />
+              </button>
+            {/each}
+          </div>
 
-            <div class="sub-section">
-              <span class="section-label">Label background</span>
-              <div class="color-row">
-                {#each COLOR_PALETTE as color}
-                  <button
-                    class="color-btn small"
-                    class:active={currentPin.label.bgColor === color}
-                    class:white={color === '#FFFFFF'}
-                    style="background-color: {color}"
-                    on:click={() => updateLabelBgColor(color)}
-                    aria-label="Select {color} background"
-                  ></button>
-                {/each}
-              </div>
-            </div>
-
-            <div class="nudge-section">
-              <span class="section-label">Nudge label</span>
-              <div class="nudge-row">
-                <button class="nudge-btn" on:click={() => nudgeLabel('left')} aria-label="Nudge left">
-                  <img src="/icons/icon-left.svg" alt="" />
-                </button>
-                <button class="nudge-btn" on:click={() => nudgeLabel('right')} aria-label="Nudge right">
-                  <img src="/icons/icon-right.svg" alt="" />
-                </button>
-                <button class="nudge-btn" on:click={() => nudgeLabel('up')} aria-label="Nudge up">
-                  <img src="/icons/icon-up.svg" alt="" />
-                </button>
-                <button class="nudge-btn" on:click={() => nudgeLabel('down')} aria-label="Nudge down">
-                  <img src="/icons/icon-down.svg" alt="" />
-                </button>
-              </div>
+          <div class="slider-group">
+            <span class="slider-label">Pin size</span>
+            <div class="slider-wrapper">
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={pin.size}
+                on:input={(e) => updateSize(pin.id, parseInt(e.currentTarget.value) as PinSize)}
+                on:mousedown={() => (isDraggingSize[pin.id] = true)}
+                on:mouseup={() => (isDraggingSize[pin.id] = false)}
+                on:touchstart={() => (isDraggingSize[pin.id] = true)}
+                on:touchend={() => (isDraggingSize[pin.id] = false)}
+                class="slider"
+              />
+              {#if isDraggingSize[pin.id]}
+                <span class="slider-feedback">{pin.size}</span>
+              {/if}
             </div>
           </div>
-        {/if}
 
-        <button class="delete-btn" on:click={deletePin}>Delete Pin</button>
+          <div class="slider-group">
+            <span class="slider-label">Opacity</span>
+            <div class="slider-wrapper">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="10"
+                value={pin.opacity}
+                on:input={(e) => updateOpacity(pin.id, parseInt(e.currentTarget.value))}
+                on:mousedown={() => (isDraggingOpacity[pin.id] = true)}
+                on:mouseup={() => (isDraggingOpacity[pin.id] = false)}
+                on:touchstart={() => (isDraggingOpacity[pin.id] = true)}
+                on:touchend={() => (isDraggingOpacity[pin.id] = false)}
+                class="slider"
+              />
+              {#if isDraggingOpacity[pin.id]}
+                <span class="slider-feedback">{pin.opacity}%</span>
+              {/if}
+            </div>
+          </div>
+
+          <div class="color-row">
+            {#each COLOR_PALETTE as color}
+              <button
+                class="color-btn"
+                class:active={pin.color === color}
+                class:white={color === '#FFFFFF'}
+                style="background-color: {color}"
+                on:click={() => updateColor(pin.id, color)}
+                aria-label="Select {color} color"
+              ></button>
+            {/each}
+          </div>
+
+          <div class="toggle-row">
+            <span class="toggle-label">Pin label</span>
+            <button
+              class="toggle-switch"
+              class:active={showLabelControls[pin.id]}
+              on:click={() => toggleLabel(pin.id)}
+              aria-label="Toggle pin label"
+            >
+              <span class="toggle-knob"></span>
+            </button>
+          </div>
+
+          {#if showLabelControls[pin.id] && pin.label}
+            <div class="label-section">
+              <textarea
+                class="label-input"
+                placeholder="Add label text"
+                value={pin.label.text}
+                on:input={(e) => updateLabelText(pin.id, e.currentTarget.value)}
+                on:keydown={(e) => handleLabelKeydown(pin.id, e)}
+              />
+
+              <div class="slider-group">
+                <span class="slider-label">Label size</span>
+                <div class="slider-wrapper">
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="1"
+                    value={getLabelSizeValue(pin.label.size)}
+                    on:input={(e) => updateLabelSize(pin.id, setLabelSizeFromValue(parseInt(e.currentTarget.value)))}
+                    on:mousedown={() => (isDraggingLabelSize[pin.id] = true)}
+                    on:mouseup={() => (isDraggingLabelSize[pin.id] = false)}
+                    on:touchstart={() => (isDraggingLabelSize[pin.id] = true)}
+                    on:touchend={() => (isDraggingLabelSize[pin.id] = false)}
+                    class="slider"
+                  />
+                  {#if isDraggingLabelSize[pin.id]}
+                    <span class="slider-feedback">{pin.label.size}</span>
+                  {/if}
+                </div>
+              </div>
+
+              <div class="slider-group">
+                <span class="slider-label">Opacity</span>
+                <div class="slider-wrapper">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="10"
+                    value={pin.label.bgOpacity}
+                    on:input={(e) => updateLabelBgOpacity(pin.id, parseInt(e.currentTarget.value))}
+                    on:mousedown={() => (isDraggingLabelOpacity[pin.id] = true)}
+                    on:mouseup={() => (isDraggingLabelOpacity[pin.id] = false)}
+                    on:touchstart={() => (isDraggingLabelOpacity[pin.id] = true)}
+                    on:touchend={() => (isDraggingLabelOpacity[pin.id] = false)}
+                    class="slider"
+                  />
+                  {#if isDraggingLabelOpacity[pin.id]}
+                    <span class="slider-feedback">{pin.label.bgOpacity}%</span>
+                  {/if}
+                </div>
+              </div>
+
+              <div class="sub-section">
+                <span class="section-label">Label background</span>
+                <div class="color-row">
+                  {#each COLOR_PALETTE as color}
+                    <button
+                      class="color-btn small"
+                      class:active={pin.label.bgColor === color}
+                      class:white={color === '#FFFFFF'}
+                      style="background-color: {color}"
+                      on:click={() => updateLabelBgColor(pin.id, color)}
+                      aria-label="Select {color} background"
+                    ></button>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="nudge-section">
+                <span class="section-label">Nudge label</span>
+                <div class="nudge-row">
+                  <button class="nudge-btn" on:click={() => nudgeLabel(pin.id, 'left')} aria-label="Nudge left">
+                    <img src="/icons/icon-left.svg" alt="" />
+                  </button>
+                  <button class="nudge-btn" on:click={() => nudgeLabel(pin.id, 'right')} aria-label="Nudge right">
+                    <img src="/icons/icon-right.svg" alt="" />
+                  </button>
+                  <button class="nudge-btn" on:click={() => nudgeLabel(pin.id, 'up')} aria-label="Nudge up">
+                    <img src="/icons/icon-up.svg" alt="" />
+                  </button>
+                  <button class="nudge-btn" on:click={() => nudgeLabel(pin.id, 'down')} aria-label="Nudge down">
+                    <img src="/icons/icon-down.svg" alt="" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <button class="delete-btn" on:click={() => deletePin(pin.id)}>Delete Pin</button>
+        </div>
+        {/if}
       </div>
-    {/if}
+    {/each}
   </div>
 {/if}
 
@@ -453,6 +496,12 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+  }
+
+  .pin-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
   }
 
   .pin-bar {

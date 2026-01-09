@@ -16,6 +16,7 @@
   import BaseMapSelector from './lib/components/BaseMapSelector.svelte';
   import PinEditor from './lib/components/PinEditor.svelte';
   import SavedTab from './lib/components/SavedTab.svelte';
+  import InsetMapEditor from './lib/components/InsetMapEditor.svelte';
 
   let currentTab: 'create' | 'saved' = 'create';
   let currentMarkers: any[] = [];
@@ -25,7 +26,6 @@
   let currentCenter: any = { lat: 6.5244, lng: 3.3792 };
   let currentZoom: number = 12;
   let showNewMapModal = false;
-  let insetMapEnabled = false;
 
   $: activeTab.subscribe((tab) => (currentTab = tab));
   $: markers.subscribe((m) => (currentMarkers = m));
@@ -142,17 +142,7 @@
           <img src="/icons/icon-newpin.svg" alt="" class="add-pin-icon" />
         </button>
 
-        <div class="inset-toggle-row">
-          <span class="inset-label">Inset map</span>
-          <button 
-            class="toggle-switch" 
-            class:active={insetMapEnabled}
-            on:click={() => insetMapEnabled = !insetMapEnabled}
-            aria-label="Toggle inset map"
-          >
-            <span class="toggle-knob"></span>
-          </button>
-        </div>
+        <InsetMapEditor />
 
         <div class="action-buttons">
           <button 
@@ -345,51 +335,6 @@
     width: 56px;
     height: 56px;
     filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
-  }
-
-  .inset-toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-md) 0;
-    border-bottom: 1px solid #ddd;
-  }
-
-  .inset-label {
-    font-size: 14px;
-    color: var(--color-text-primary);
-  }
-
-  .toggle-switch {
-    width: 48px;
-    height: 28px;
-    border-radius: 14px;
-    border: none;
-    background-color: #ccc;
-    position: relative;
-    cursor: pointer;
-    transition: background-color 200ms ease;
-    padding: 0;
-  }
-
-  .toggle-switch.active {
-    background-color: var(--color-brand);
-  }
-
-  .toggle-knob {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background-color: var(--color-white);
-    transition: transform 200ms ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  }
-
-  .toggle-switch.active .toggle-knob {
-    transform: translateX(20px);
   }
 
   .action-buttons {

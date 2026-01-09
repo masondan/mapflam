@@ -1,6 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import type L from 'leaflet';
-import type { Marker, MapFormat, BaseMap, SavedMap, NominatimResult } from './types';
+import type { Marker, MapFormat, BaseMap, SavedMap, NominatimResult, InsetConfig } from './types';
 
 // Map instance & view
 export const leafletMap = writable<L.Map | null>(null);
@@ -13,9 +13,29 @@ export const markers = writable<Marker[]>([]);
 // UI state
 export const selectedFormat = writable<MapFormat>('square');
 export const selectedBaseMap = writable<BaseMap>('positron');
-export const insetMapEnabled = writable(false); // Phase 2
 export const activeTab = writable<'create' | 'saved'>('create');
 export const editingPinId = writable<string | null>(null);
+
+// Inset map state (Phase 2)
+export const insetConfig = writable<InsetConfig>({
+  enabled: false,
+  position: 'top-right',
+  size: 'medium',
+  borderColor: '#5422b0',
+  baseMap: 'positron-nolabels',
+  center: { lat: 6.5244, lng: 3.3792 },
+  zoom: 5,
+  spotlight: {
+    enabled: false,
+    lat: 6.5244,
+    lng: 3.3792,
+    color: '#5422b0',
+    size: 3,
+  },
+});
+
+// Inset map Leaflet instance
+export const insetLeafletMap = writable<L.Map | null>(null);
 
 // Search state (debounced)
 export const searchQuery = writable('');

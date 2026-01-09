@@ -6,6 +6,28 @@ export type LabelSize = 'small' | 'medium' | 'large';
 export type MapFormat = 'square' | '16:9' | '9:16';
 export type BaseMap = 'positron' | 'positron-nolabels' | 'toner';
 
+// Inset map types (Phase 2)
+export type InsetPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type InsetSize = 'small' | 'medium' | 'large';
+export type InsetBaseMap = 'positron-nolabels' | 'watercolor' | 'voyager';
+
+export interface InsetConfig {
+  enabled: boolean;
+  position: InsetPosition;
+  size: InsetSize;
+  borderColor: string;
+  baseMap: InsetBaseMap;
+  center: { lat: number; lng: number };
+  zoom: number;
+  spotlight: {
+    enabled: boolean;
+    lat: number;
+    lng: number;
+    color: string;
+    size: 1 | 2 | 3 | 4 | 5;
+  };
+}
+
 export interface Label {
   text: string;
   size: LabelSize;
@@ -114,6 +136,32 @@ export const BASE_MAP_TILES: Record<BaseMap, { url: string; attribution: string 
     attribution:
       '© OpenStreetMap contributors, © Stamen Design',
   },
+};
+
+// Inset map tile providers (simpler styles)
+export const INSET_MAP_TILES: Record<InsetBaseMap, { url: string; attribution: string; name: string }> = {
+  'positron-nolabels': {
+    url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    attribution: '© OpenStreetMap contributors, © CartoDB',
+    name: 'Light',
+  },
+  watercolor: {
+    url: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
+    attribution: '© OpenStreetMap contributors, © Stamen Design',
+    name: 'Watercolor',
+  },
+  voyager: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+    attribution: '© OpenStreetMap contributors, © CartoDB',
+    name: 'Voyager',
+  },
+};
+
+// Inset size dimensions (px)
+export const INSET_SIZE_MAP: Record<InsetSize, number> = {
+  small: 100,
+  medium: 140,
+  large: 180,
 };
 
 // Export sizes by format

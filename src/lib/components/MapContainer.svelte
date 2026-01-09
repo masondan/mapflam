@@ -2,15 +2,29 @@
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { onMount, onDestroy } from 'svelte';
-  import { leafletMap, mapCenter, mapZoom, markers, selectedBaseMap, selectedFormat } from '../stores';
-  import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES, ICON_FILES } from '../types';
-  import type { Marker, MapFormat, BaseMap } from '../types';
+  import { leafletMap, mapCenter, mapZoom, markers, selectedBaseMap, selectedFormat, insetConfig } from '../stores';
+  import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES, ICON_FILES, INSET_MAP_TILES, INSET_SIZE_MAP } from '../types';
+  import type { Marker, MapFormat, BaseMap, InsetConfig } from '../types';
 
   let mapContainer: HTMLDivElement;
+  let insetContainer: HTMLDivElement;
   let map: L.Map | null = null;
+  let insetMap: L.Map | null = null;
+  let insetTileLayer: L.TileLayer | null = null;
+  let insetSpotlightMarker: L.Marker | null = null;
   let leafletMarkers: Map<string, L.Marker> = new Map();
   let panZoomTimeout: ReturnType<typeof setTimeout>;
   let currentFormat: MapFormat = 'square';
+  let currentInsetConfig: InsetConfig;
+  let previousInsetSize: string | null = null;
+
+  const SPOTLIGHT_SIZE_MAP: Record<1 | 2 | 3 | 4 | 5, number> = {
+    1: 20,
+    2: 30,
+    3: 40,
+    4: 50,
+    5: 60,
+  };
 
   const unsubscribeFormat = selectedFormat.subscribe((f) => {
     currentFormat = f;
@@ -67,16 +81,131 @@
       if (map) updateTileLayer($baseMap);
     });
 
+    const unsubscribeInset = insetConfig.subscribe((config) => {
+      currentInsetConfig = config;
+      if (config.enabled && insetContainer && !insetMap) {
+        setTimeout(initInsetMap, 50);
+      } else if (!config.enabled && insetMap) {
+        destroyInsetMap();
+      } else if (insetMap) {
+        updateInsetMap(config);
+      }
+    });
+
     return () => {
       unsubscribeMarkers();
       unsubscribeBaseMap();
       unsubscribeFormat();
+      unsubscribeInset();
+      destroyInsetMap();
       if (map) {
         map.remove();
         map = null;
       }
     };
   });
+
+  function initInsetMap() {
+    if (!insetContainer || insetMap) return;
+
+    insetMap = L.map(insetContainer, {
+      center: [currentInsetConfig.center.lat, currentInsetConfig.center.lng],
+      zoom: currentInsetConfig.zoom,
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      touchZoom: false,
+      doubleClickZoom: false,
+    });
+
+    previousInsetSize = currentInsetConfig.size;
+    updateInsetTileLayer(currentInsetConfig.baseMap);
+    updateInsetSpotlight(currentInsetConfig);
+  }
+
+  function destroyInsetMap() {
+    if (insetMap) {
+      insetMap.remove();
+      insetMap = null;
+      insetTileLayer = null;
+      insetSpotlightMarker = null;
+    }
+  }
+
+  function updateInsetMap(config: InsetConfig) {
+    if (!insetMap) return;
+    
+    // Check if size changed and invalidate to resize the map
+    if (previousInsetSize !== null && previousInsetSize !== config.size) {
+      setTimeout(() => {
+        if (insetMap) {
+          insetMap.invalidateSize();
+        }
+      }, 50);
+    }
+    previousInsetSize = config.size;
+    
+    insetMap.setView([config.center.lat, config.center.lng], config.zoom, { animate: false });
+    updateInsetTileLayer(config.baseMap);
+    updateInsetSpotlight(config);
+  }
+
+  function createSpotlightIcon(color: string, size: number): L.DivIcon {
+    return L.divIcon({
+      html: `<div style="
+        width: ${size}px;
+        height: ${size}px;
+        border: 3px solid ${color};
+        border-radius: 50%;
+        background: transparent;
+        box-sizing: border-box;
+      "></div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      className: 'spotlight-marker',
+    });
+  }
+
+  function updateInsetSpotlight(config: InsetConfig) {
+    if (!insetMap) return;
+
+    if (!config.spotlight.enabled) {
+      if (insetSpotlightMarker) {
+        insetMap.removeLayer(insetSpotlightMarker);
+        insetSpotlightMarker = null;
+      }
+      return;
+    }
+
+    const size = SPOTLIGHT_SIZE_MAP[config.spotlight.size];
+    const icon = createSpotlightIcon(config.spotlight.color, size);
+
+    if (insetSpotlightMarker) {
+      insetSpotlightMarker.setLatLng([config.spotlight.lat, config.spotlight.lng]);
+      insetSpotlightMarker.setIcon(icon);
+    } else {
+      insetSpotlightMarker = L.marker([config.spotlight.lat, config.spotlight.lng], {
+        icon,
+        draggable: false,
+        interactive: false,
+      }).addTo(insetMap);
+    }
+  }
+
+  function updateInsetTileLayer(baseMap: string) {
+    if (!insetMap) return;
+    if (insetTileLayer) {
+      insetMap.removeLayer(insetTileLayer);
+    }
+    const tiles = INSET_MAP_TILES[baseMap as keyof typeof INSET_MAP_TILES];
+    if (tiles) {
+      insetTileLayer = L.tileLayer(tiles.url, {
+        attribution: '',
+        maxZoom: 19,
+      }).addTo(insetMap);
+    }
+  }
 
   function updateTileLayer(baseMap: BaseMap): void {
     if (!map) return;
@@ -196,17 +325,70 @@
   }
 </script>
 
-<div
-  bind:this={mapContainer}
-  class="map-wrapper"
-  style="aspect-ratio: {getAspectRatio(currentFormat)};"
-></div>
+<div class="map-outer" style="aspect-ratio: {getAspectRatio(currentFormat)};">
+  <div
+    bind:this={mapContainer}
+    class="map-wrapper"
+  ></div>
+  
+  {#if currentInsetConfig?.enabled}
+    <div
+      bind:this={insetContainer}
+      class="inset-overlay"
+      class:top-left={currentInsetConfig.position === 'top-left'}
+      class:top-right={currentInsetConfig.position === 'top-right'}
+      class:bottom-left={currentInsetConfig.position === 'bottom-left'}
+      class:bottom-right={currentInsetConfig.position === 'bottom-right'}
+      style="
+        width: {INSET_SIZE_MAP[currentInsetConfig.size]}px;
+        height: {INSET_SIZE_MAP[currentInsetConfig.size]}px;
+        border-color: {currentInsetConfig.borderColor};
+      "
+    ></div>
+  {/if}
+</div>
 
 <style>
-  .map-wrapper {
+  .map-outer {
+    position: relative;
     width: 100%;
     overflow: hidden;
+  }
+
+  .map-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     position: relative;
+  }
+
+  .inset-overlay {
+    position: absolute;
+    border: 4px solid;
+    border-radius: var(--radius-md, 8px);
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+  }
+
+  .inset-overlay.top-left {
+    top: 12px;
+    left: 12px;
+  }
+
+  .inset-overlay.top-right {
+    top: 12px;
+    right: 12px;
+  }
+
+  .inset-overlay.bottom-left {
+    bottom: 12px;
+    left: 12px;
+  }
+
+  .inset-overlay.bottom-right {
+    bottom: 12px;
+    right: 12px;
   }
 
   :global(.leaflet-container) {
@@ -225,5 +407,10 @@
   :global(.leaflet-control-attribution) {
     font-size: 9px;
     background-color: rgba(255, 255, 255, 0.7) !important;
+  }
+
+  :global(.spotlight-marker) {
+    background: transparent !important;
+    border: none !important;
   }
 </style>
