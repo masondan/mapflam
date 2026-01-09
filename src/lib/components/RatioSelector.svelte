@@ -2,10 +2,10 @@
   import { selectedFormat } from '../stores';
   import type { MapFormat } from '../types';
 
-  const formats: { label: string; value: MapFormat; ratio: string }[] = [
-    { label: '9:16', value: '9:16', ratio: 'Portrait' },
-    { label: '1:1', value: 'square', ratio: 'Square' },
-    { label: '16:9', value: '16:9', ratio: 'Landscape' },
+  const formats: { label: string; value: MapFormat }[] = [
+    { label: '9:16', value: '9:16' },
+    { label: '1:1', value: 'square' },
+    { label: '16:9', value: '16:9' },
   ];
 
   function selectFormat(format: MapFormat) {
@@ -16,13 +16,12 @@
 <div class="ratio-selector">
   {#each formats as format (format.value)}
     <button
-      class="format-button"
+      class="ratio-button"
       class:active={$selectedFormat === format.value}
       on:click={() => selectFormat(format.value)}
-      aria-label="Select {format.ratio} ({format.label})"
+      aria-label="Select {format.label} format"
     >
-      <span class="format-label">{format.label}</span>
-      <span class="format-ratio">{format.ratio}</span>
+      {format.label}
     </button>
   {/each}
 </div>
@@ -30,14 +29,13 @@
 <style>
   .ratio-selector {
     display: flex;
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-md);
+    gap: 8px;
   }
 
-  .format-button {
-    flex: 1;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 2px solid var(--color-border);
+  .ratio-button {
+    min-width: 48px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background-color: var(--color-white);
     color: var(--color-text-primary);
@@ -45,30 +43,15 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 200ms ease;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
   }
 
-  .format-button:active {
-    border-color: var(--color-brand);
-    background-color: var(--color-brand-light);
-    color: var(--color-brand);
+  .ratio-button:hover {
+    background-color: var(--color-bg-panel);
   }
 
-  .format-ratio {
-    font-size: 12px;
-    color: var(--color-text-light);
-  }
-
-  .format-button.active {
-    border-color: var(--color-brand);
-    background-color: var(--color-brand);
+  .ratio-button.active {
+    background-color: var(--color-text-primary);
     color: var(--color-white);
-  }
-
-  .format-button.active .format-ratio {
-    color: rgba(255, 255, 255, 0.8);
+    border-color: var(--color-text-primary);
   }
 </style>

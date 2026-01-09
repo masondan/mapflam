@@ -17,7 +17,6 @@
   import PinEditor from './lib/components/PinEditor.svelte';
   import SavedTab from './lib/components/SavedTab.svelte';
 
-  let autoSaveTimeout: ReturnType<typeof setTimeout>;
   let currentTab: 'create' | 'saved' = 'create';
   let currentMarkers: any[] = [];
   let pinEditorRef: PinEditor;
@@ -25,8 +24,9 @@
   let currentBaseMap: string = 'positron';
   let currentCenter: any = { lat: 6.5244, lng: 3.3792 };
   let currentZoom: number = 12;
+  let showNewMapModal = false;
+  let insetMapEnabled = false;
 
-  // Subscribe to stores
   $: activeTab.subscribe((tab) => (currentTab = tab));
   $: markers.subscribe((m) => (currentMarkers = m));
   $: selectedFormat.subscribe((f) => (currentFormat = f));
@@ -34,20 +34,11 @@
   $: mapCenter.subscribe((c) => (currentCenter = c));
   $: mapZoom.subscribe((z) => (currentZoom = z));
 
+  $: hasPins = currentMarkers.length > 0;
+
   onMount(() => {
-    // Load saved maps on app start
     loadSavedMaps();
 
-    // Initialize auto-save debounce
-    const unsubscribe = markers.subscribe(() => {
-      clearTimeout(autoSaveTimeout);
-      autoSaveTimeout = setTimeout(() => {
-        // Auto-save will be triggered by Svelte's reactive updates
-        // The actual persistence is handled in component-level saves
-      }, 1000);
-    });
-
-    // Handle marker click (edit)
     const handleMarkerClick = (e: Event) => {
       const customEvent = e as CustomEvent;
       const markerId = customEvent.detail.markerId;
@@ -57,11 +48,16 @@
       }
     };
 
+    const handleEditMap = () => {
+      activeTab.set('create');
+    };
+
     window.addEventListener('marker-click', handleMarkerClick);
+    window.addEventListener('edit-map', handleEditMap);
 
     return () => {
-      unsubscribe();
       window.removeEventListener('marker-click', handleMarkerClick);
+      window.removeEventListener('edit-map', handleEditMap);
     };
   });
 
@@ -72,92 +68,109 @@
   }
 
   async function handleExport() {
-    await exportMap('#map', currentFormat as any, `mapflam_${currentFormat}_${new Date().toISOString().split('T')[0]}.png`);
+    await exportMap('#map-container', currentFormat as any, `mapflam_${currentFormat}_${new Date().toISOString().split('T')[0]}.png`);
   }
 
-  function handleNewMap() {
-    if (confirm('Save current map before creating a new one?')) {
-      // Save current state
-      const mapData: SavedMap = {
-        id: Date.now().toString(),
-        name: `Map ${new Date().toLocaleString()}`,
-        createdAt: Date.now(),
-        state: {
-          markers: $markers,
-          selectedFormat: currentFormat as any,
-          selectedBaseMap: currentBaseMap as any,
-          mapCenter: currentCenter,
-          mapZoom: currentZoom,
-        },
-        pinCount: $markers.length,
-        thumbnail: '',
-      };
-      saveMap(mapData);
-    }
-    // Reset
+  function handleNewMapClick() {
+    showNewMapModal = true;
+  }
+
+  function confirmNewMap() {
+    const mapData: SavedMap = {
+      id: Date.now().toString(),
+      name: `Map ${new Date().toLocaleString()}`,
+      createdAt: Date.now(),
+      state: {
+        markers: $markers,
+        selectedFormat: currentFormat as any,
+        selectedBaseMap: currentBaseMap as any,
+        mapCenter: currentCenter,
+        mapZoom: currentZoom,
+      },
+      pinCount: $markers.length,
+      thumbnail: '',
+    };
+    saveMap(mapData);
     markers.set([]);
+    showNewMapModal = false;
+  }
+
+  function cancelNewMap() {
+    showNewMapModal = false;
   }
 </script>
 
 <div class="app-container">
   <header class="app-header">
-    <h1>MapFlam</h1>
-    <nav class="tab-navigation">
-      <button
-        class="tab-button"
-        class:active={currentTab === 'create'}
-        on:click={() => activeTab.set('create')}
-      >
-        Create
-      </button>
-      <button
-        class="tab-button"
-        class:active={currentTab === 'saved'}
-        on:click={() => activeTab.set('saved')}
-      >
-        Saved
-      </button>
-    </nav>
+    <div class="logo-container">
+      <img src="/icons/logotype-mapflam-purple-trs.png" alt="MapFlam" class="logo" />
+    </div>
   </header>
+
+  <nav class="tab-navigation">
+    <button
+      class="tab-button"
+      class:active={currentTab === 'create'}
+      on:click={() => activeTab.set('create')}
+    >
+      Create
+    </button>
+    <button
+      class="tab-button"
+      class:active={currentTab === 'saved'}
+      on:click={() => activeTab.set('saved')}
+    >
+      Saved
+    </button>
+  </nav>
 
   <main class="main-content">
     {#if currentTab === 'create'}
       <div class="create-tab">
-        <div class="map-section">
+        <div class="controls-row">
+          <BaseMapSelector />
+          <RatioSelector />
+        </div>
+
+        <div class="map-section" id="map-container">
           <MapContainer />
         </div>
 
-        <div class="controls-section">
-          <fieldset class="control-group">
-            <legend class="control-label">Map Format</legend>
-            <RatioSelector />
-          </fieldset>
+        <PinEditor bind:this={pinEditorRef} />
 
-          <div class="control-group">
-            <span class="control-label">Base Map</span>
-            <BaseMapSelector />
-          </div>
+        <button class="add-pin-button" on:click={openAddPin} aria-label="Add new pin">
+          <img src="/icons/icon-newpin.svg" alt="" class="add-pin-icon" />
+        </button>
 
-          <div class="control-group">
-            <button class="primary-button" on:click={openAddPin}>+ Add Pin</button>
-          </div>
+        <div class="inset-toggle-row">
+          <span class="inset-label">Inset map</span>
+          <button 
+            class="toggle-switch" 
+            class:active={insetMapEnabled}
+            on:click={() => insetMapEnabled = !insetMapEnabled}
+            aria-label="Toggle inset map"
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
 
-          {#if currentMarkers.length > 0}
-            <div class="export-controls">
-              <button class="export-button" on:click={handleExport}>⬇ Download PNG</button>
-              <button class="secondary-button" on:click={handleNewMap}>→ New Map</button>
-            </div>
-
-            <div class="pin-list">
-              <h3>Pins ({currentMarkers.length})</h3>
-              {#each currentMarkers as marker (marker.id)}
-                <div class="pin-item">
-                  <span>{marker.name}</span>
-                  <button class="icon-button" on:click={() => pinEditorRef.initPin(marker)}>Edit</button>
-                </div>
-              {/each}
-            </div>
-          {/if}
+        <div class="action-buttons">
+          <button 
+            class="action-button" 
+            class:disabled={!hasPins}
+            disabled={!hasPins}
+            on:click={handleExport}
+          >
+            Download
+          </button>
+          <button 
+            class="action-button" 
+            class:disabled={!hasPins}
+            disabled={!hasPins}
+            on:click={handleNewMapClick}
+          >
+            New map
+          </button>
         </div>
       </div>
     {:else if currentTab === 'saved'}
@@ -165,7 +178,17 @@
     {/if}
   </main>
 
-  <PinEditor bind:this={pinEditorRef} />
+  {#if showNewMapModal}
+    <div class="modal-overlay" role="dialog" aria-modal="true" tabindex="-1" on:click={cancelNewMap} on:keydown={(e) => e.key === 'Escape' && cancelNewMap()}>
+      <div class="modal-card" on:click|stopPropagation>
+        <p class="modal-text">Your maps (up to five)<br/>are auto-saved for 30 days</p>
+        <div class="modal-actions">
+          <button class="modal-cancel" on:click={cancelNewMap}>Cancel</button>
+          <button class="modal-confirm" on:click={confirmNewMap}>Start new map</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -205,190 +228,250 @@
   .app-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    min-height: 100vh;
     max-width: 480px;
     margin: 0 auto;
     background-color: var(--color-white);
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+    box-shadow: -20px 0 40px rgba(0, 0, 0, 0.03), 20px 0 40px rgba(0, 0, 0, 0.03);
   }
 
   .app-header {
     padding: var(--spacing-md);
-    border-bottom: 2px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
     background-color: var(--color-white);
   }
 
-  .app-header h1 {
-    margin: 0 0 var(--spacing-md) 0;
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--color-text-dark);
+  .logo-container {
+    display: flex;
+    justify-content: center;
+  }
+
+  .logo {
+    height: 40px;
+    width: auto;
   }
 
   .tab-navigation {
     display: flex;
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-md) 0;
+    background-color: var(--color-white);
   }
 
   .tab-button {
-    flex: 1;
-    padding: var(--spacing-sm) var(--spacing-md);
+    position: relative;
+    flex: 0 0 auto;
+    padding: var(--spacing-sm) 0;
     border: none;
-    border-radius: var(--radius-md);
-    background-color: var(--color-bg-panel);
+    background-color: transparent;
     color: var(--color-text-primary);
-    font-size: 14px;
+    font-size: 20px;
     font-weight: 500;
     cursor: pointer;
     transition: all 200ms ease;
   }
 
   .tab-button:hover {
-    background-color: var(--color-brand-light);
+    color: var(--color-brand);
   }
 
   .tab-button.active {
+    color: var(--color-brand);
+  }
+
+  .tab-button.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
     background-color: var(--color-brand);
-    color: var(--color-white);
+    border-radius: 2px;
   }
 
   .main-content {
     flex: 1;
-    overflow-y: auto;
     padding: var(--spacing-md);
+    overflow-y: auto;
   }
 
   .create-tab {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md);
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
   }
 
   .map-section {
     width: 100%;
-    aspect-ratio: 1 / 1;
     border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ddd;
+    background-color: #f5f5f5;
+    position: relative;
+    contain: layout;
   }
 
-  .controls-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-
-  .control-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-  }
-
-  .control-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-dark);
-  }
-
-  .primary-button {
-    padding: var(--spacing-md);
+  .add-pin-button {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
     border: none;
-    border-radius: var(--radius-md);
-    background-color: var(--color-brand);
-    color: var(--color-white);
-    font-size: 14px;
-    font-weight: 600;
+    background-color: transparent;
     cursor: pointer;
-    transition: all 200ms ease;
-  }
-
-  .primary-button:hover {
-    background-color: #4318a3;
-  }
-
-  .primary-button:active {
-    transform: scale(0.98);
-  }
-
-  .pin-list {
-    padding: var(--spacing-md);
-    background-color: var(--color-bg-panel);
-    border-radius: var(--radius-md);
-  }
-
-  .pin-list h3 {
-    margin: 0 0 var(--spacing-md) 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-dark);
-  }
-
-  .pin-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
-    background-color: var(--color-white);
-    border-radius: 4px;
-  }
-
-  .pin-item:last-child {
-    margin-bottom: 0;
-  }
-
-  .icon-button {
-    padding: 4px 8px;
-    border: none;
-    border-radius: 4px;
-    background-color: var(--color-brand-light);
-    color: var(--color-brand);
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
+    justify-content: center;
+    margin: var(--spacing-md) auto;
     transition: all 200ms ease;
+    padding: 0;
   }
 
-  .icon-button:hover {
+  .add-pin-button:hover {
+    opacity: 0.8;
+  }
+
+  .add-pin-button:active {
+    transform: scale(0.95);
+  }
+
+  .add-pin-icon {
+    width: 56px;
+    height: 56px;
+    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
+  }
+
+  .inset-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) 0;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .inset-label {
+    font-size: 14px;
+    color: var(--color-text-primary);
+  }
+
+  .toggle-switch {
+    width: 48px;
+    height: 28px;
+    border-radius: 14px;
+    border: none;
+    background-color: #ccc;
+    position: relative;
+    cursor: pointer;
+    transition: background-color 200ms ease;
+    padding: 0;
+  }
+
+  .toggle-switch.active {
     background-color: var(--color-brand);
-    color: var(--color-white);
   }
 
-  .export-controls {
+  .toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--color-white);
+    transition: transform 200ms ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .toggle-switch.active .toggle-knob {
+    transform: translateX(20px);
+  }
+
+  .action-buttons {
     display: flex;
     gap: var(--spacing-md);
-    flex-direction: column;
   }
 
-  .export-button {
+  .action-button {
+    flex: 1;
     padding: var(--spacing-md);
-    border: none;
+    border: 2px solid var(--color-brand);
     border-radius: var(--radius-md);
-    background-color: #02441f;
-    color: var(--color-white);
+    background-color: var(--color-white);
+    color: var(--color-brand);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 200ms ease;
   }
 
-  .export-button:hover {
-    background-color: #1a5c37;
+  .action-button:hover:not(.disabled) {
+    background-color: var(--color-brand-light);
   }
 
-  .secondary-button {
-    padding: var(--spacing-md);
-    border: none;
+  .action-button.disabled {
+    border-color: var(--color-text-light);
+    color: var(--color-text-light);
+    cursor: not-allowed;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal-card {
+    background-color: var(--color-white);
     border-radius: var(--radius-md);
-    background-color: var(--color-bg-panel);
+    padding: var(--spacing-lg);
+    margin: var(--spacing-md);
+    max-width: 300px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    text-align: center;
+  }
+
+  .modal-text {
+    margin: 0 0 var(--spacing-lg) 0;
+    font-size: 14px;
+    color: var(--color-text-dark);
+    line-height: 1.5;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-lg);
+  }
+
+  .modal-cancel {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: none;
+    background: none;
     color: var(--color-text-primary);
     font-size: 14px;
-    font-weight: 600;
     cursor: pointer;
-    transition: all 200ms ease;
   }
 
-  .secondary-button:hover {
-    background-color: #d9d9d9;
+  .modal-confirm {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: none;
+    background: none;
+    color: var(--color-text-dark);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
   }
 </style>

@@ -1,32 +1,37 @@
 <script lang="ts">
   import { v4 as uuidv4 } from 'uuid';
-  import { markers, editingPinId } from '../stores';
-  import { COLOR_PALETTE, ICON_FILES, SIZE_MAP, LABEL_SIZES } from '../types';
+  import { get } from 'svelte/store';
+  import { markers, editingPinId, mapCenter, leafletMap } from '../stores';
+  import { COLOR_PALETTE, ICON_FILES } from '../types';
   import type { Marker, IconType, PinSize, LabelSize } from '../types';
   import SearchBar from './SearchBar.svelte';
 
   let isExpanded = false;
   let currentPin: Marker | null = null;
-  let showLabelControls = false;
   let markerList: Marker[] = [];
-  let editingExistingPin = false;
+  let isDraggingSize = false;
+  let isDraggingOpacity = false;
+  let isDraggingLabelSize = false;
+  let isDraggingLabelOpacity = false;
+  let showLabelControls = false;
 
-  // Subscribe to markers to get count for new pins
   markers.subscribe((m) => {
     markerList = m;
   });
 
-  // Initialize new pin or edit existing
   export function initPin(pin?: Marker) {
+    let center = { lat: 6.5244, lng: 3.3792 };
+    mapCenter.subscribe((c) => (center = c))();
+
     if (pin) {
       currentPin = { ...pin };
       editingPinId.set(pin.id);
-      editingExistingPin = true;
+      showLabelControls = !!pin.label;
     } else {
       currentPin = {
         id: uuidv4(),
-        lat: 6.5244,
-        lng: 3.3792,
+        lat: center.lat,
+        lng: center.lng,
         icon: 'pin1',
         size: 3,
         opacity: 100,
@@ -34,457 +39,565 @@
         name: `Pin ${markerList.length + 1}`,
       };
       editingPinId.set(currentPin.id);
-      editingExistingPin = false;
+      showLabelControls = false;
+      savePin();
     }
     isExpanded = true;
-    showLabelControls = !!currentPin.label;
   }
 
-  function collapse() {
-    isExpanded = false;
-    if (currentPin && !editingExistingPin) {
-      // If new pin, don't save
-      currentPin = null;
-      editingPinId.set(null);
+  function toggleExpand() {
+    isExpanded = !isExpanded;
+  }
+
+  function centerMapOnPin() {
+    const map = get(leafletMap);
+    if (currentPin && map) {
+      map.setView([currentPin.lat, currentPin.lng], map.getZoom());
+      mapCenter.set({ lat: currentPin.lat, lng: currentPin.lng });
     }
   }
 
   function savePin() {
     if (!currentPin) return;
 
-    const pinToSave = currentPin;
-    markers.update((markerList) => {
-      const existingIndex = markerList.findIndex((m) => m.id === pinToSave.id);
+    const pinToSave = { ...currentPin };
+    markers.update((list) => {
+      const existingIndex = list.findIndex((m) => m.id === pinToSave.id);
       if (existingIndex >= 0) {
-        markerList[existingIndex] = pinToSave;
+        list[existingIndex] = pinToSave;
       } else {
-        markerList.push(pinToSave);
+        list.push(pinToSave);
       }
-      return markerList;
+      return [...list];
     });
-    collapse();
-  }
-
-  function deletePin() {
-    if (!currentPin) return;
-    markers.update((markerList) => {
-      return markerList.filter((m) => m.id !== currentPin!.id);
-    });
-    collapse();
   }
 
   function handleSearch(e: CustomEvent<{ lat: number; lng: number; name: string }>) {
     if (currentPin) {
-      currentPin.lat = e.detail.lat;
-      currentPin.lng = e.detail.lng;
-      currentPin.name = e.detail.name.split(',')[0]; // Use first part as name
+      currentPin = {
+        ...currentPin,
+        lat: e.detail.lat,
+        lng: e.detail.lng,
+        name: e.detail.name.split(',')[0],
+      };
+      savePin();
+      const map = get(leafletMap);
+      if (map) {
+        map.setView([e.detail.lat, e.detail.lng], map.getZoom());
+        mapCenter.set({ lat: e.detail.lat, lng: e.detail.lng });
+      }
+    }
+  }
+
+  function placeManualPin() {
+    if (currentPin) {
+      let center = { lat: 6.5244, lng: 3.3792 };
+      mapCenter.subscribe((c) => (center = c))();
+      currentPin = { ...currentPin, lat: center.lat, lng: center.lng };
+      savePin();
     }
   }
 
   function updateIcon(icon: IconType) {
     if (currentPin) {
-      currentPin.icon = icon;
+      currentPin = { ...currentPin, icon };
+      savePin();
     }
   }
 
   function updateSize(size: PinSize) {
     if (currentPin) {
-      currentPin.size = size;
+      currentPin = { ...currentPin, size };
+      savePin();
     }
   }
 
   function updateOpacity(opacity: number) {
     if (currentPin) {
-      currentPin.opacity = opacity;
+      currentPin = { ...currentPin, opacity };
+      savePin();
     }
   }
 
   function updateColor(color: string) {
     if (currentPin) {
-      currentPin.color = color;
+      currentPin = { ...currentPin, color };
+      if (currentPin.label) {
+        currentPin = { ...currentPin, label: { ...currentPin.label, bgColor: color } };
+      }
+      savePin();
     }
   }
 
-  function updateLabelText(text: string) {
-    if (!currentPin) return;
-    if (!currentPin.label) {
-      currentPin.label = {
-        text: '',
-        size: 'medium',
-        bgColor: COLOR_PALETTE[0],
-        bgOpacity: 100,
-        offsetX: 0,
-        offsetY: 0,
-      };
-    }
-    currentPin.label.text = text;
-  }
-
-  function updateLabelSize(size: LabelSize) {
-    if (currentPin?.label) {
-      currentPin.label.size = size;
-    }
-  }
-
-  function updateLabelBgColor(color: string) {
-    if (currentPin?.label) {
-      currentPin.label.bgColor = color;
-    }
-  }
-
-  function updateLabelBgOpacity(opacity: number) {
-    if (currentPin?.label) {
-      currentPin.label.bgOpacity = opacity;
-    }
-  }
-
-  function nudgeLabel(direction: 'left' | 'right' | 'up' | 'down') {
-    if (!currentPin?.label) return;
-    const step = 4;
-    switch (direction) {
-      case 'left':
-        currentPin.label.offsetX -= step;
-        break;
-      case 'right':
-        currentPin.label.offsetX += step;
-        break;
-      case 'up':
-        currentPin.label.offsetY -= step;
-        break;
-      case 'down':
-        currentPin.label.offsetY += step;
-        break;
+  function updateName(name: string) {
+    if (currentPin) {
+      currentPin = { ...currentPin, name };
+      savePin();
     }
   }
 
   function toggleLabel() {
     if (!currentPin) return;
     if (showLabelControls) {
-      delete currentPin.label;
+      const { label, ...rest } = currentPin;
+      currentPin = rest as Marker;
       showLabelControls = false;
     } else {
-      if (!currentPin.label) {
-        currentPin.label = {
-          text: 'Label',
+      currentPin = {
+        ...currentPin,
+        label: {
+          text: '',
           size: 'medium',
-          bgColor: COLOR_PALETTE[0],
+          bgColor: currentPin.color,
           bgOpacity: 100,
           offsetX: 0,
           offsetY: 0,
-        };
-      }
+        },
+      };
       showLabelControls = true;
     }
+    savePin();
+  }
+
+  function updateLabelText(text: string) {
+    if (currentPin?.label) {
+      currentPin = { ...currentPin, label: { ...currentPin.label, text } };
+      savePin();
+    }
+  }
+
+  function handleLabelKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const textarea = e.currentTarget as HTMLTextAreaElement;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+      const newText = text.substring(0, start) + '\n' + text.substring(end);
+      updateLabelText(newText);
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 1;
+      }, 0);
+    }
+  }
+
+  function updateLabelSize(size: LabelSize) {
+    if (currentPin?.label) {
+      currentPin = { ...currentPin, label: { ...currentPin.label, size } };
+      savePin();
+    }
+  }
+
+  function updateLabelBgColor(color: string) {
+    if (currentPin?.label) {
+      currentPin = { ...currentPin, label: { ...currentPin.label, bgColor: color } };
+      savePin();
+    }
+  }
+
+  function updateLabelBgOpacity(opacity: number) {
+    if (currentPin?.label) {
+      currentPin = { ...currentPin, label: { ...currentPin.label, bgOpacity: opacity } };
+      savePin();
+    }
+  }
+
+  function nudgeLabel(direction: 'left' | 'right' | 'up' | 'down') {
+    if (!currentPin?.label) return;
+    const step = 4;
+    let { offsetX, offsetY } = currentPin.label;
+    switch (direction) {
+      case 'left': offsetX -= step; break;
+      case 'right': offsetX += step; break;
+      case 'up': offsetY -= step; break;
+      case 'down': offsetY += step; break;
+    }
+    currentPin = { ...currentPin, label: { ...currentPin.label, offsetX, offsetY } };
+    savePin();
+  }
+
+  function deletePin() {
+    if (!currentPin) return;
+    const idToDelete = currentPin.id;
+    markers.update((list) => list.filter((m) => m.id !== idToDelete));
+    currentPin = null;
+    editingPinId.set(null);
+  }
+
+  export function close() {
+    currentPin = null;
+    isExpanded = false;
+    editingPinId.set(null);
+  }
+
+  const iconTypes: IconType[] = ['pin1', 'pin2', 'pin3', 'pin4', 'pin5', 'pin6'];
+
+  function getLabelSizeValue(size: LabelSize): number {
+    return size === 'small' ? 1 : size === 'medium' ? 2 : 3;
+  }
+
+  function setLabelSizeFromValue(val: number): LabelSize {
+    return val === 1 ? 'small' : val === 2 ? 'medium' : 'large';
   }
 </script>
 
-<div class="pin-editor-overlay" class:expanded={isExpanded}>
-  {#if currentPin}
-    <div class="pin-editor-card">
-      <div class="card-header">
-        <h3>Edit Pin</h3>
-        <button class="close-button" aria-label="Close pin editor" on:click={collapse}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-        </button>
-      </div>
+{#if currentPin}
+  <div class="pin-editor">
+    <div class="pin-bar">
+      <button class="toggle-btn" on:click={toggleExpand} aria-label={isExpanded ? 'Collapse' : 'Expand'}>
+        <img src="/icons/{isExpanded ? 'icon-collapse.svg' : 'icon-expand.svg'}" alt="" />
+      </button>
+      <input
+        type="text"
+        class="pin-name-input"
+        value={currentPin.name}
+        on:input={(e) => updateName(e.currentTarget.value)}
+      />
+      <button class="center-btn" on:click={centerMapOnPin} aria-label="Center map on this pin">
+        <img src="/icons/icon-center.svg" alt="" />
+      </button>
+    </div>
 
-      <div class="card-content">
-        <!-- Search Bar -->
-        <div class="control-group">
-          <label class="control-label">Location</label>
-          <SearchBar on:select={handleSearch} />
-        </div>
-
-        <!-- Icon Selector -->
-        <div class="control-group">
-          <label class="control-label">Icon</label>
-          <div class="icon-grid">
-            {#each Object.keys(ICON_FILES) as iconKey}
-              {@const icon = iconKey as IconType}
-              <button
-                class="icon-button"
-                class:active={currentPin.icon === icon}
-                on:click={() => updateIcon(icon)}
-                title={icon}
-              >
-                <img src={`/icons/${ICON_FILES[icon]}-fill.svg`} alt={icon} />
-              </button>
-            {/each}
+    {#if isExpanded}
+      <div class="pin-card">
+        <div class="search-row">
+          <div class="search-wrapper">
+            <SearchBar on:select={handleSearch} />
           </div>
-        </div>
-
-        <!-- Size Slider -->
-        <div class="control-group">
-          <label class="control-label" for="pin-size">Size: {currentPin.size}/5</label>
-          <input
-            id="pin-size"
-            type="range"
-            min="1"
-            max="5"
-            value={currentPin.size}
-            on:input={(e) => updateSize(parseInt(e.currentTarget.value) as PinSize)}
-            class="slider"
-          />
-        </div>
-
-        <!-- Opacity Slider -->
-        <div class="control-group">
-          <label class="control-label" for="pin-opacity">Opacity: {currentPin.opacity}%</label>
-          <input
-            id="pin-opacity"
-            type="range"
-            min="0"
-            max="100"
-            step="10"
-            value={currentPin.opacity}
-            on:input={(e) => updateOpacity(parseInt(e.currentTarget.value))}
-            class="slider"
-          />
-        </div>
-
-        <!-- Color Picker -->
-        <div class="control-group">
-          <label class="control-label">Color</label>
-          <div class="color-picker">
-            {#each COLOR_PALETTE as color}
-              <button
-                class="color-button"
-                class:active={currentPin.color === color}
-                style="--color: {color}"
-                on:click={() => updateColor(color)}
-                title={color}
-                aria-label="Color {color}"
-              ></button>
-            {/each}
-          </div>
-        </div>
-
-        <!-- Label Toggle -->
-        <div class="control-group">
-          <button
-            class="toggle-button"
-            class:active={showLabelControls}
-            on:click={toggleLabel}
-          >
-            {showLabelControls ? '✓' : ''} Pin Label
+          <button class="pushpin-btn" on:click={placeManualPin} aria-label="Place pin manually">
+            <img src="/icons/icon-pushpin-fill.svg" alt="" />
           </button>
         </div>
 
-        <!-- Label Controls (Conditional) -->
-        {#if showLabelControls && currentPin.label}
-          <div class="label-controls">
-            <div class="control-group">
-              <label class="control-label" for="label-text">Label Text</label>
-              <input
-                id="label-text"
-                type="text"
-                value={currentPin.label.text}
-                on:input={(e) => updateLabelText(e.currentTarget.value)}
-                placeholder="Enter label text"
-                class="text-input"
-              />
-            </div>
+        <div class="icon-selector">
+          {#each iconTypes as icon}
+            <button
+              class="icon-btn"
+              class:active={currentPin.icon === icon}
+              style="--active-color: {currentPin.color}"
+              on:click={() => updateIcon(icon)}
+              aria-label="Select {icon}"
+            >
+              <img src="/icons/{ICON_FILES[icon]}" alt={icon} class:colored={currentPin.icon === icon} style="--icon-color: {currentPin.color}" />
+            </button>
+          {/each}
+        </div>
 
-            <div class="control-group">
-              <label class="control-label" for="label-size">Label Size</label>
-              <div class="size-buttons">
-                {#each Object.keys(LABEL_SIZES) as sizeKey}
-                  {@const size = sizeKey as LabelSize}
-                  <button
-                    class="size-button"
-                    class:active={currentPin.label.size === size}
-                    on:click={() => updateLabelSize(size)}
-                  >
-                    {size.charAt(0).toUpperCase() + size.slice(1)}
-                  </button>
-                {/each}
+        <div class="slider-group">
+          <span class="slider-label">Pin size</span>
+          <div class="slider-wrapper">
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="1"
+              value={currentPin.size}
+              on:input={(e) => updateSize(parseInt(e.currentTarget.value) as PinSize)}
+              on:mousedown={() => (isDraggingSize = true)}
+              on:mouseup={() => (isDraggingSize = false)}
+              on:touchstart={() => (isDraggingSize = true)}
+              on:touchend={() => (isDraggingSize = false)}
+              class="slider"
+            />
+            {#if isDraggingSize}
+              <span class="slider-feedback">{currentPin.size}</span>
+            {/if}
+          </div>
+        </div>
+
+        <div class="slider-group">
+          <span class="slider-label">Opacity</span>
+          <div class="slider-wrapper">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="10"
+              value={currentPin.opacity}
+              on:input={(e) => updateOpacity(parseInt(e.currentTarget.value))}
+              on:mousedown={() => (isDraggingOpacity = true)}
+              on:mouseup={() => (isDraggingOpacity = false)}
+              on:touchstart={() => (isDraggingOpacity = true)}
+              on:touchend={() => (isDraggingOpacity = false)}
+              class="slider"
+            />
+            {#if isDraggingOpacity}
+              <span class="slider-feedback">{currentPin.opacity}%</span>
+            {/if}
+          </div>
+        </div>
+
+        <div class="color-row">
+          {#each COLOR_PALETTE as color}
+            <button
+              class="color-btn"
+              class:active={currentPin.color === color}
+              class:white={color === '#FFFFFF'}
+              style="background-color: {color}"
+              on:click={() => updateColor(color)}
+              aria-label="Select {color} color"
+            ></button>
+          {/each}
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-label">Pin label</span>
+          <button
+            class="toggle-switch"
+            class:active={showLabelControls}
+            on:click={toggleLabel}
+            aria-label="Toggle pin label"
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+
+        {#if showLabelControls && currentPin.label}
+           <div class="label-section">
+             <textarea
+               class="label-input"
+               placeholder="Add label text"
+               value={currentPin.label.text}
+               on:input={(e) => updateLabelText(e.currentTarget.value)}
+               on:keydown={handleLabelKeydown}
+             />
+
+            <div class="slider-group">
+              <span class="slider-label">Label size</span>
+              <div class="slider-wrapper">
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="1"
+                  value={getLabelSizeValue(currentPin.label.size)}
+                  on:input={(e) => updateLabelSize(setLabelSizeFromValue(parseInt(e.currentTarget.value)))}
+                  on:mousedown={() => (isDraggingLabelSize = true)}
+                  on:mouseup={() => (isDraggingLabelSize = false)}
+                  on:touchstart={() => (isDraggingLabelSize = true)}
+                  on:touchend={() => (isDraggingLabelSize = false)}
+                  class="slider"
+                />
+                {#if isDraggingLabelSize}
+                  <span class="slider-feedback">{currentPin.label.size}</span>
+                {/if}
               </div>
             </div>
 
-            <div class="control-group">
-              <label class="control-label" for="label-bg-color">Label Background Color</label>
-              <div class="color-picker" id="label-bg-color">
+            <div class="slider-group">
+              <span class="slider-label">Opacity</span>
+              <div class="slider-wrapper">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="10"
+                  value={currentPin.label.bgOpacity}
+                  on:input={(e) => updateLabelBgOpacity(parseInt(e.currentTarget.value))}
+                  on:mousedown={() => (isDraggingLabelOpacity = true)}
+                  on:mouseup={() => (isDraggingLabelOpacity = false)}
+                  on:touchstart={() => (isDraggingLabelOpacity = true)}
+                  on:touchend={() => (isDraggingLabelOpacity = false)}
+                  class="slider"
+                />
+                {#if isDraggingLabelOpacity}
+                  <span class="slider-feedback">{currentPin.label.bgOpacity}%</span>
+                {/if}
+              </div>
+            </div>
+
+            <div class="sub-section">
+              <span class="section-label">Label background</span>
+              <div class="color-row">
                 {#each COLOR_PALETTE as color}
                   <button
-                    class="color-button"
+                    class="color-btn small"
                     class:active={currentPin.label.bgColor === color}
-                    style="--color: {color}"
+                    class:white={color === '#FFFFFF'}
+                    style="background-color: {color}"
                     on:click={() => updateLabelBgColor(color)}
-                    aria-label="Background color {color}"
+                    aria-label="Select {color} background"
                   ></button>
                 {/each}
               </div>
             </div>
 
-            <div class="control-group">
-              <label class="control-label" for="label-bg-opacity">Background Opacity: {currentPin.label.bgOpacity}%</label>
-              <input
-                id="label-bg-opacity"
-                type="range"
-                min="0"
-                max="100"
-                step="10"
-                value={currentPin.label.bgOpacity}
-                on:input={(e) => updateLabelBgOpacity(parseInt(e.currentTarget.value))}
-                class="slider"
-              />
-            </div>
-
-            <!-- Nudge Buttons -->
-            <div class="control-group">
-              <label class="control-label">Position</label>
-              <div class="nudge-controls">
-                <button class="nudge-button up" on:click={() => nudgeLabel('up')} title="Up">↑</button>
-                <div class="nudge-row">
-                  <button class="nudge-button left" on:click={() => nudgeLabel('left')} title="Left">←</button>
-                  <button class="nudge-button right" on:click={() => nudgeLabel('right')} title="Right">→</button>
-                </div>
-                <button class="nudge-button down" on:click={() => nudgeLabel('down')} title="Down">↓</button>
+            <div class="nudge-section">
+              <span class="section-label">Nudge label</span>
+              <div class="nudge-row">
+                <button class="nudge-btn" on:click={() => nudgeLabel('left')} aria-label="Nudge left">
+                  <img src="/icons/icon-left.svg" alt="" />
+                </button>
+                <button class="nudge-btn" on:click={() => nudgeLabel('right')} aria-label="Nudge right">
+                  <img src="/icons/icon-right.svg" alt="" />
+                </button>
+                <button class="nudge-btn" on:click={() => nudgeLabel('up')} aria-label="Nudge up">
+                  <img src="/icons/icon-up.svg" alt="" />
+                </button>
+                <button class="nudge-btn" on:click={() => nudgeLabel('down')} aria-label="Nudge down">
+                  <img src="/icons/icon-down.svg" alt="" />
+                </button>
               </div>
             </div>
           </div>
         {/if}
-      </div>
 
-      <div class="card-footer">
-        <button class="delete-button" on:click={deletePin}>Delete</button>
-        <button class="save-button" on:click={savePin}>Save Pin</button>
+        <button class="delete-btn" on:click={deletePin}>Delete Pin</button>
       </div>
-    </div>
-  {/if}
-</div>
+    {/if}
+  </div>
+{/if}
 
 <style>
-  .pin-editor-overlay {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: rgba(0, 0, 0, 0);
-    pointer-events: none;
-    z-index: 20;
-    max-width: 480px;
-    margin: 0 auto;
-  }
-
-  .pin-editor-overlay.expanded {
-    pointer-events: all;
-    background-color: rgba(0, 0, 0, 0.3);
-  }
-
-  .pin-editor-card {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: var(--color-white);
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.15);
-    display: flex;
-    flex-direction: column;
-    max-height: 80vh;
-    animation: slideUp 250ms ease-out;
-  }
-
-  @keyframes slideUp {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
-  }
-
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-md);
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .card-header h3 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--color-text-dark);
-  }
-
-  .close-button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-text-primary);
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-md);
-    transition: all 200ms ease;
-  }
-
-  .close-button:hover {
-    background-color: var(--color-brand-light);
-    color: var(--color-brand);
-  }
-
-  .card-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--spacing-md);
+  .pin-editor {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
   }
 
-  .control-group {
+  .pin-bar {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: var(--spacing-sm);
   }
 
-  .control-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-dark);
-  }
-
-  .icon-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--spacing-sm);
-  }
-
-  .icon-button {
-    aspect-ratio: 1;
-    border: 2px solid transparent;
+  .toggle-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background-color: var(--color-text-primary);
     border-radius: var(--radius-md);
-    background-color: var(--color-bg-panel);
-    padding: var(--spacing-sm);
     cursor: pointer;
-    transition: all 200ms ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
-  .icon-button:hover {
-    background-color: var(--color-brand-light);
+  .toggle-btn img {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) invert(1);
   }
 
-  .icon-button.active {
+  .pin-name-input {
+    flex: 1;
+    padding: 12px var(--spacing-md);
+    background-color: var(--color-bg-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--color-text-dark);
+  }
+
+  .pin-name-input:focus {
+    outline: none;
     border-color: var(--color-brand);
-    background-color: var(--color-brand-light);
   }
 
-  .icon-button img {
+  .center-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .center-btn img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .pin-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-white);
+  }
+
+  .search-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .search-wrapper {
+    flex: 1;
+  }
+
+  .pushpin-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .pushpin-btn img {
+    width: 24px;
+    height: 24px;
+    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
+  }
+
+  .icon-selector {
+    display: flex;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    width: 56px;
+    height: 56px;
+    border: 1px solid var(--color-text-light);
+    border-radius: var(--radius-md);
+    background-color: var(--color-white);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 200ms ease;
+  }
+
+  .icon-btn.active {
+    border-color: var(--active-color);
+    border-width: 2px;
+  }
+
+  .icon-btn:not(.active) img {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
+  }
+
+  .icon-btn img {
     width: 32px;
     height: 32px;
-    object-fit: contain;
+  }
+
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+  }
+
+  .slider-label {
+    font-size: 14px;
+    color: var(--color-text-primary);
+    min-width: 70px;
+  }
+
+  .slider-wrapper {
+    flex: 1;
+    position: relative;
   }
 
   .slider {
@@ -499,11 +612,10 @@
 
   .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
-    appearance: none;
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: var(--color-brand);
+    background: var(--color-text-primary);
     cursor: pointer;
   }
 
@@ -511,188 +623,191 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: var(--color-brand);
+    background: var(--color-text-primary);
     cursor: pointer;
     border: none;
   }
 
-  .color-picker {
-    display: flex;
-    gap: var(--spacing-sm);
-    flex-wrap: wrap;
+  .slider-feedback {
+    position: absolute;
+    right: 0;
+    top: -24px;
+    font-size: 12px;
+    color: var(--color-text-dark);
+    background-color: var(--color-bg-panel);
+    padding: 2px 8px;
+    border-radius: 4px;
   }
 
-  .color-button {
+  .color-row {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+  }
+
+  .color-btn {
     width: 40px;
     height: 40px;
     border-radius: 50%;
     border: 2px solid transparent;
-    background-color: var(--color);
     cursor: pointer;
     transition: all 200ms ease;
-    flex-shrink: 0;
   }
 
-  .color-button:hover {
-    transform: scale(1.1);
+  .color-btn.small {
+    width: 40px;
+    height: 40px;
   }
 
-  .color-button.active {
-    border-color: var(--color-text-dark);
-    box-shadow: 0 0 0 2px var(--color-white), 0 0 0 4px var(--color-text-dark);
+  .color-btn.white {
+    border-color: var(--color-text-light);
   }
 
-  .toggle-button {
-    padding: var(--spacing-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background-color: var(--color-white);
-    color: var(--color-text-primary);
+  .color-btn.active {
+    box-shadow: 0 0 0 2px var(--color-white), 0 0 0 4px var(--color-text-light);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--color-text-primary);
+  }
+
+  .toggle-label {
     font-size: 14px;
-    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+
+  .toggle-switch {
+    width: 48px;
+    height: 28px;
+    border-radius: 14px;
+    border: none;
+    background-color: #ccc;
+    position: relative;
     cursor: pointer;
-    transition: all 200ms ease;
-    text-align: left;
+    transition: background-color 200ms ease;
+    padding: 0;
   }
 
-  .toggle-button:hover {
-    background-color: var(--color-bg-panel);
+  .toggle-switch.active {
+    background-color: var(--color-brand);
   }
 
-  .toggle-button.active {
-    background-color: var(--color-brand-light);
-    color: var(--color-brand);
-    border-color: var(--color-brand);
+  .toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--color-white);
+    transition: transform 200ms ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
-  .label-controls {
-    padding: var(--spacing-md);
-    background-color: var(--color-bg-panel);
-    border-radius: var(--radius-md);
+  .toggle-switch.active .toggle-knob {
+    transform: translateX(20px);
+  }
+
+  .label-section {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg) 0;
+    background-color: transparent;
+    border-radius: 0;
   }
 
-  .text-input {
+  .label-input {
     width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 10px var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     font-size: 14px;
     font-family: inherit;
-    color: var(--color-text-primary);
+    background-color: var(--color-white);
+    resize: both;
+    height: 40px;
+    min-height: 40px;
+    line-height: 20px;
+    box-sizing: border-box;
   }
 
-  .text-input:focus {
+  .label-input::placeholder {
+    color: var(--color-text-light);
+  }
+
+  .label-input:focus {
     outline: none;
     border-color: var(--color-brand);
-    box-shadow: 0 0 0 2px rgba(84, 34, 176, 0.1);
   }
 
-  .size-buttons {
-    display: flex;
-    gap: var(--spacing-sm);
-  }
-
-  .size-button {
-    flex: 1;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background-color: var(--color-white);
-    color: var(--color-text-primary);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 200ms ease;
-  }
-
-  .size-button:hover {
-    border-color: var(--color-brand);
-  }
-
-  .size-button.active {
-    background-color: var(--color-brand);
-    color: var(--color-white);
-    border-color: var(--color-brand);
-  }
-
-  .nudge-controls {
+  .sub-section {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 12px;
+  }
+
+  .section-label {
+    font-size: 13px;
+    color: var(--color-text-primary);
+  }
+
+  .nudge-section {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--color-text-primary);
   }
 
   .nudge-row {
     display: flex;
-    gap: 4px;
+    gap: 8px;
   }
 
-  .nudge-button {
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background-color: var(--color-white);
-    color: var(--color-text-primary);
+  .nudge-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background-color: transparent;
     cursor: pointer;
-    font-size: 16px;
-    transition: all 200ms ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    transition: filter 200ms ease;
   }
 
-  .nudge-button:hover {
-    background-color: var(--color-brand-light);
-    border-color: var(--color-brand);
+  .nudge-btn img {
+    width: 32px;
+    height: 32px;
+    filter: brightness(0) saturate(100%) invert(50%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(90%);
   }
 
-  .card-footer {
-    display: flex;
-    gap: var(--spacing-md);
-    padding: var(--spacing-md);
-    border-top: 1px solid var(--color-border);
-    background-color: var(--color-white);
+  .nudge-btn:hover img,
+  .nudge-btn:active img {
+    filter: brightness(0) saturate(100%) invert(22%) sepia(51%) saturate(1886%) hue-rotate(247deg) brightness(102%) contrast(102%);
   }
 
-  .delete-button {
-    flex: 1;
-    padding: var(--spacing-md);
-    border: 1px solid #ab0000;
-    border-radius: var(--radius-md);
-    background-color: white;
-    color: #ab0000;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 200ms ease;
-  }
-
-  .delete-button:hover {
-    background-color: rgba(171, 0, 0, 0.1);
-  }
-
-  .save-button {
-    flex: 1;
+  .delete-btn {
+    width: 100%;
     padding: var(--spacing-md);
     border: none;
     border-radius: var(--radius-md);
-    background-color: var(--color-brand);
-    color: var(--color-white);
+    background-color: transparent;
+    color: var(--color-text-dark);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 200ms ease;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
   }
 
-  .save-button:hover {
-    background-color: #4318a3;
-  }
-
-  .save-button:active {
-    transform: scale(0.98);
+  .delete-btn:hover {
+    color: #ab0000;
   }
 </style>

@@ -2,10 +2,10 @@
   import { selectedBaseMap } from '../stores';
   import type { BaseMap } from '../types';
 
-  const baseMaps: { label: string; value: BaseMap; description: string }[] = [
-    { label: 'Positron', value: 'positron', description: 'Light, clean map with labels' },
-    { label: 'Positron No Labels', value: 'positron-nolabels', description: 'Light map, minimal labels' },
-    { label: 'Toner', value: 'toner', description: 'High-contrast B&W map' },
+  const baseMaps: { label: string; value: BaseMap }[] = [
+    { label: 'Positron', value: 'positron' },
+    { label: 'No Labels', value: 'positron-nolabels' },
+    { label: 'Toner', value: 'toner' },
   ];
 
   let isOpen = false;
@@ -18,26 +18,53 @@
   function toggleDropdown() {
     isOpen = !isOpen;
   }
+
+  function handleClickOutside(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.base-map-selector')) {
+      isOpen = false;
+    }
+  }
+
+  $: if (typeof window !== 'undefined') {
+    if (isOpen) {
+      window.addEventListener('click', handleClickOutside);
+    } else {
+      window.removeEventListener('click', handleClickOutside);
+    }
+  }
 </script>
 
 <div class="base-map-selector">
-  <button class="dropdown-button" on:click={toggleDropdown} aria-label="Select base map">
-    <span>{baseMaps.find(m => m.value === $selectedBaseMap)?.label || 'Positron'}</span>
-    <img src="/icons/icon-more.svg" alt="" width="16" height="16" />
+  <button 
+    class="dropdown-trigger" 
+    class:open={isOpen}
+    on:click|stopPropagation={toggleDropdown}
+    aria-label="Select base map"
+  >
+    <span class="trigger-label">Base map</span>
+    <img 
+      src={isOpen ? '/icons/icon-collapse.svg' : '/icons/icon-expand.svg'} 
+      alt="" 
+      class="trigger-icon"
+    />
   </button>
 
   {#if isOpen}
-    <div class="dropdown-menu">
-      {#each baseMaps as baseMap (baseMap.value)}
-        <button
-          class="dropdown-item"
-          class:active={$selectedBaseMap === baseMap.value}
-          on:click={() => selectMap(baseMap.value)}
-        >
-          <div class="item-label">{baseMap.label}</div>
-          <div class="item-description">{baseMap.description}</div>
-        </button>
-      {/each}
+    <div class="dropdown-panel">
+      <div class="thumbnail-grid">
+        {#each baseMaps as baseMap (baseMap.value)}
+          <button
+            class="thumbnail-card"
+            class:active={$selectedBaseMap === baseMap.value}
+            on:click={() => selectMap(baseMap.value)}
+          >
+            <div class="thumbnail-preview">
+              <span class="thumbnail-text">{baseMap.label}</span>
+            </div>
+          </button>
+        {/each}
+      </div>
     </div>
   {/if}
 </div>
@@ -45,79 +72,93 @@
 <style>
   .base-map-selector {
     position: relative;
-    margin-bottom: var(--spacing-md);
+    flex: 1;
   }
 
-  .dropdown-button {
+  .dropdown-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 2px solid var(--color-border);
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background-color: var(--color-white);
     color: var(--color-text-primary);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     transition: all 200ms ease;
   }
 
-  .dropdown-button:hover {
-    border-color: var(--color-brand);
-    background-color: var(--color-brand-light);
+  .dropdown-trigger.open {
+    background-color: var(--color-bg-panel);
   }
 
-  .dropdown-menu {
+  .dropdown-trigger:hover {
+    background-color: var(--color-bg-panel);
+  }
+
+  .trigger-icon {
+    width: 20px;
+    height: 20px;
+    opacity: 0.6;
+  }
+
+  .dropdown-panel {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 8px);
     left: 0;
     right: 0;
     background-color: var(--color-white);
-    border: 2px solid var(--color-border);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-    margin-top: 4px;
+    z-index: 100;
+    padding: var(--spacing-sm);
+    width: calc(100vw - 32px);
+    max-width: 448px;
   }
 
-  .dropdown-item {
-    width: 100%;
-    padding: var(--spacing-md);
-    border: none;
-    background-color: transparent;
-    text-align: left;
+  .thumbnail-grid {
+    display: flex;
+    gap: 8px;
+  }
+
+  .thumbnail-card {
+    flex: 1;
+    aspect-ratio: 1;
+    border: 1px solid #999999;
+    border-radius: var(--radius-md);
+    background-color: var(--color-bg-panel);
     cursor: pointer;
-    transition: background-color 200ms ease;
-    border-bottom: 1px solid var(--color-border);
+    transition: all 200ms ease;
+    padding: 0;
+    overflow: hidden;
   }
 
-  .dropdown-item:last-child {
-    border-bottom: none;
+  .thumbnail-card:hover {
+    border-color: var(--color-text-primary);
   }
 
-  .dropdown-item:hover {
-    background-color: var(--color-brand-light);
+  .thumbnail-card.active {
+    border-color: #777777;
+    border-width: 3px;
   }
 
-  .dropdown-item.active {
-    background-color: var(--color-brand);
-    color: var(--color-white);
+  .thumbnail-preview {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-bg-panel);
   }
 
-  .item-label {
-    font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 2px;
-  }
-
-  .item-description {
-    font-size: 12px;
-    opacity: 0.7;
-  }
-
-  .dropdown-item.active .item-description {
-    opacity: 0.9;
+  .thumbnail-text {
+    font-size: 11px;
+    color: var(--color-text-primary);
+    text-align: center;
   }
 </style>

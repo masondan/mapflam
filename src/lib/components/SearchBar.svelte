@@ -9,10 +9,11 @@
   let debounceTimer: ReturnType<typeof setTimeout>;
   let showDropdown = false;
   let inputElement: HTMLInputElement;
+  let query = '';
 
   async function handleInput(e: Event) {
     const target = e.target as HTMLInputElement;
-    const query = target.value.trim();
+    query = target.value.trim();
 
     searchQuery.set(query);
     clearTimeout(debounceTimer);
@@ -24,19 +25,29 @@
     }
 
     showDropdown = true;
-    isSearching.set(true);
+  }
 
-    debounceTimer = setTimeout(async () => {
-      try {
-        const results = await searchLocations(query);
-        searchResults.set(results);
-      } catch (error) {
-        console.error('Search error:', error);
-        searchResults.set([]);
-      } finally {
-        isSearching.set(false);
-      }
-    }, 300);
+  async function triggerSearch() {
+    if (query.length < 2) return;
+    
+    isSearching.set(true);
+    try {
+      const results = await searchLocations(query);
+      searchResults.set(results);
+      showDropdown = true;
+    } catch (error) {
+      console.error('Search error:', error);
+      searchResults.set([]);
+    } finally {
+      isSearching.set(false);
+    }
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      triggerSearch();
+    }
   }
 
   function selectResult(result: NominatimResult) {
@@ -46,7 +57,7 @@
       name: result.display_name,
     });
 
-    // Reset UI
+    query = '';
     searchQuery.set('');
     searchResults.set([]);
     showDropdown = false;
@@ -54,118 +65,141 @@
   }
 
   function handleFocus() {
-    showDropdown = true;
+    if ($searchResults.length > 0) {
+      showDropdown = true;
+    }
   }
 
   function handleBlur() {
-    // Delay to allow click on results
     setTimeout(() => {
       showDropdown = false;
-    }, 150);
+    }, 200);
+  }
+
+  $: if (query.length >= 2) {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(triggerSearch, 300);
   }
 </script>
 
-<div class="search-bar-wrapper">
-  <div class="search-input-container">
+<div class="search-bar">
+  <div class="input-wrapper">
     <input
       bind:this={inputElement}
       type="text"
-      placeholder="Search location..."
+      placeholder="Search or tap pin to add"
       on:input={handleInput}
+      on:keydown={handleKeydown}
       on:focus={handleFocus}
       on:blur={handleBlur}
       class="search-input"
     />
-    {#if $isSearching}
-      <span class="search-loading">Searching...</span>
-    {/if}
+    <button class="search-btn" on:click={triggerSearch} aria-label="Search">
+      <img src="/icons/icon-go.svg" alt="" />
+    </button>
   </div>
 
   {#if showDropdown && $searchResults.length > 0}
-    <ul class="search-results">
+    <ul class="results-dropdown">
       {#each $searchResults as result (result.place_id)}
         <li>
           <button class="result-item" on:click={() => selectResult(result)}>
-            <span class="result-name">{result.display_name}</span>
-            <span class="result-coords">{parseFloat(result.lat).toFixed(4)}, {parseFloat(result.lon).toFixed(4)}</span>
+            <span class="result-name">{result.display_name.split(',').slice(0, 2).join(', ')}</span>
+            <span class="result-full">{result.display_name}</span>
           </button>
         </li>
       {/each}
     </ul>
-  {:else if showDropdown && $searchQuery.length >= 2 && !$isSearching && $searchResults.length === 0}
-    <div class="search-empty">No results found</div>
+  {:else if showDropdown && query.length >= 2 && !$isSearching && $searchResults.length === 0}
+    <div class="no-results">No results found</div>
+  {:else if showDropdown && $isSearching}
+    <div class="searching">Searching...</div>
   {/if}
 </div>
 
 <style>
-  .search-bar-wrapper {
+  .search-bar {
     position: relative;
     width: 100%;
   }
 
-  .search-input-container {
-    position: relative;
+  .input-wrapper {
     display: flex;
     align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-white);
+    overflow: hidden;
   }
 
   .search-input {
-    width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    flex: 1;
+    padding: 10px var(--spacing-md);
+    border: none;
     font-size: 14px;
     font-family: inherit;
-    background-color: var(--color-white);
-    color: var(--color-text-primary);
-    transition: border-color 200ms ease;
+    background-color: transparent;
+    color: var(--color-text-dark);
   }
 
   .search-input:focus {
     outline: none;
-    border-color: var(--color-brand);
-    box-shadow: 0 0 0 2px rgba(84, 34, 176, 0.1);
   }
 
   .search-input::placeholder {
     color: var(--color-text-light);
   }
 
-  .search-loading {
-    position: absolute;
-    right: var(--spacing-md);
-    font-size: 12px;
-    color: var(--color-text-light);
-    pointer-events: none;
+  .search-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
-  .search-results {
+  .search-btn img {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
+  }
+
+  .results-dropdown {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 4px);
     left: 0;
     right: 0;
-    margin: 4px 0 0 0;
+    margin: 0;
     padding: 0;
     list-style: none;
     background-color: var(--color-white);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    max-height: 240px;
+    max-height: 200px;
     overflow-y: auto;
-    z-index: 10;
+    z-index: 50;
   }
 
   .result-item {
     display: flex;
     flex-direction: column;
     width: 100%;
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
     border: none;
     background-color: transparent;
     text-align: left;
     cursor: pointer;
     transition: background-color 150ms ease;
+    border-bottom: 1px solid #eee;
+  }
+
+  .result-item:last-child {
+    border-bottom: none;
   }
 
   .result-item:hover {
@@ -176,20 +210,22 @@
     font-size: 14px;
     font-weight: 500;
     color: var(--color-text-dark);
-    margin-bottom: 2px;
   }
 
-  .result-coords {
+  .result-full {
     font-size: 12px;
     color: var(--color-text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .search-empty {
+  .no-results,
+  .searching {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 4px);
     left: 0;
     right: 0;
-    margin-top: 4px;
     padding: var(--spacing-md);
     background-color: var(--color-white);
     border: 1px solid var(--color-border);
@@ -197,5 +233,6 @@
     font-size: 14px;
     color: var(--color-text-light);
     text-align: center;
+    z-index: 50;
   }
 </style>

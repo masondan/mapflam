@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { markers, selectedFormat, selectedBaseMap, mapCenter, mapZoom } from '../stores';
+  import { markers, selectedFormat, selectedBaseMap, mapCenter, mapZoom, activeTab } from '../stores';
   import { loadSavedMaps, deleteMap as deleteMapFromStorage, saveMap } from '../services/persistence';
-  import { exportMap } from '../services/export';
   import type { SavedMap } from '../types';
 
   let savedMaps: SavedMap[] = [];
-  let showMenu: Record<string, boolean> = {};
+  let expandedMenuId: string | null = null;
+  let confirmingDeleteId: string | null = null;
   let editingMapId: string | null = null;
   let editingMapName: string = '';
 
@@ -20,41 +20,40 @@
   }
 
   function handleEditMap(map: SavedMap) {
-    // Load map state into create tab
     markers.set(map.state.markers);
     selectedFormat.set(map.state.selectedFormat);
     selectedBaseMap.set(map.state.selectedBaseMap);
     mapCenter.set(map.state.mapCenter);
     mapZoom.set(map.state.mapZoom);
-
-    // Switch to create tab
-    // Note: activeTab is imported but not used here, should dispatch to parent
-    const event = new CustomEvent('edit-map', { detail: { map } });
-    window.dispatchEvent(event);
+    activeTab.set('create');
+    expandedMenuId = null;
   }
 
-  function handleDelete(map: SavedMap) {
-    if (confirm(`Delete "${map.name}"?`)) {
-      deleteMapFromStorage(map.id);
-      loadStoredMaps();
-      showMenu[map.id] = false;
+  function toggleMenu(mapId: string) {
+    if (expandedMenuId === mapId) {
+      expandedMenuId = null;
+      confirmingDeleteId = null;
+    } else {
+      expandedMenuId = mapId;
+      confirmingDeleteId = null;
     }
   }
 
-  async function handleDownload(map: SavedMap) {
-    // This is tricky - we'd need to recreate the map on a hidden canvas
-    // For now, show a message
-    alert('Download feature requires map re-rendering. Coming in Phase 2.');
+  function initiateDelete(mapId: string) {
+    confirmingDeleteId = mapId;
+  }
+
+  function confirmDelete(map: SavedMap) {
+    deleteMapFromStorage(map.id);
+    loadStoredMaps();
+    expandedMenuId = null;
+    confirmingDeleteId = null;
   }
 
   function startEditing(map: SavedMap) {
     editingMapId = map.id;
     editingMapName = map.name;
-  }
-
-  function cancelEditing() {
-    editingMapId = null;
-    editingMapName = '';
+    expandedMenuId = null;
   }
 
   function saveMapName(map: SavedMap) {
@@ -63,258 +62,296 @@
       saveMap(map);
       loadStoredMaps();
     }
-    cancelEditing();
+    editingMapId = null;
+    editingMapName = '';
   }
 
-  function toggleMenu(mapId: string) {
-    showMenu[mapId] = !showMenu[mapId];
+  function cancelEditing() {
+    editingMapId = null;
+    editingMapName = '';
+  }
+
+  function formatTimeAgo(timestamp: number): string {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) {
+      return `${days} day${days > 1 ? 's' : ''} ago`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+      return 'Just now';
+    }
   }
 </script>
 
 <div class="saved-tab">
-  <h2>Saved Maps</h2>
-
   {#if savedMaps.length === 0}
     <div class="empty-state">
-      <p>No saved maps yet.</p>
-      <p>Create a map and click "New Map" to save it.</p>
+      <p class="empty-title">No saved maps yet.</p>
+      <p class="empty-text">Maps are deleted after 30 days to conserve device memory</p>
+      <p class="empty-text">Deleting your cache may delete maps.</p>
     </div>
   {:else}
     <div class="map-list">
       {#each savedMaps as map (map.id)}
-        <div class="map-card">
-          <div class="map-info">
-            {#if editingMapId === map.id}
-              <div class="edit-form">
-                <input
-                  type="text"
-                  value={editingMapName}
-                  on:input={(e) => (editingMapName = e.currentTarget.value)}
-                  class="map-name-input"
-                />
-                <div class="edit-buttons">
-                  <button class="save-btn" on:click={() => saveMapName(map)}>Save</button>
-                  <button class="cancel-btn" on:click={cancelEditing}>Cancel</button>
-                </div>
-              </div>
-            {:else}
-              <div class="map-header">
-                <div class="map-name-wrapper">
-                  <h3 class="map-name">{map.name}</h3>
-                  <span class="pin-count">{map.state.markers.length} pin{map.state.markers.length !== 1 ? 's' : ''}</span>
-                </div>
-                <button class="menu-button" on:click={() => toggleMenu(map.id)}>⋯</button>
-              </div>
-              <p class="map-date">{new Date(map.createdAt).toLocaleDateString()}</p>
-            {/if}
+        <div class="map-item">
+          <div class="map-thumbnail">
+            <img src="/icons/logo-mapflam-purple-gen.png" alt="Map thumbnail" />
           </div>
-
-          {#if showMenu[map.id]}
-            <div class="menu-dropdown">
-              <button class="menu-item edit" on:click={() => startEditing(map)}>✏️ Rename</button>
-              <button class="menu-item load" on:click={() => handleEditMap(map)}>📂 Edit</button>
-              <button class="menu-item delete" on:click={() => handleDelete(map)}>🗑️ Delete</button>
+          
+          <div class="map-details">
+            {#if editingMapId === map.id}
+              <input
+                type="text"
+                class="name-input"
+                bind:value={editingMapName}
+                on:blur={() => saveMapName(map)}
+                on:keydown={(e) => e.key === 'Enter' && saveMapName(map)}
+              />
+            {:else}
+              <div class="map-name-row">
+                <span class="map-name">{map.name}</span>
+                <button class="edit-name-btn" on:click={() => startEditing(map)}>
+                  <img src="/icons/icon-pencil-fill.svg" alt="Edit name" />
+                </button>
+              </div>
+            {/if}
+            
+            <div class="map-meta">
+              <span class="meta-item">
+                <img src="/icons/icon-time.svg" alt="" class="meta-icon" />
+                {formatTimeAgo(map.createdAt)}
+              </span>
+              <span class="meta-item">
+                <img src="/icons/icon-pushpin.svg" alt="" class="meta-icon" />
+                {map.state.markers.length}
+              </span>
             </div>
-          {/if}
+          </div>
+          
+          <button class="menu-btn" on:click={() => toggleMenu(map.id)}>
+            <img src="/icons/icon-more.svg" alt="More options" />
+          </button>
         </div>
+
+        {#if expandedMenuId === map.id}
+          <div class="action-toolbar">
+            {#if confirmingDeleteId === map.id}
+              <button class="toolbar-btn delete-confirm" on:click={() => confirmDelete(map)}>
+                <img src="/icons/icon-trash-fill.svg" alt="" class="toolbar-icon delete-icon" />
+                Delete?
+              </button>
+            {:else}
+              <button class="toolbar-btn" on:click={() => initiateDelete(map.id)}>
+                <img src="/icons/icon.trash.svg" alt="" class="toolbar-icon" />
+              </button>
+            {/if}
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" on:click={() => handleEditMap(map)}>
+              Download
+            </button>
+            <span class="toolbar-divider"></span>
+            <button class="toolbar-btn" on:click={() => handleEditMap(map)}>
+              Edit
+            </button>
+          </div>
+        {/if}
+        
+        <div class="list-divider"></div>
       {/each}
     </div>
   {/if}
-
-  <p class="footer-note">Maps expire after 30 days. Clearing your browser cache will delete all saved maps.</p>
 </div>
 
 <style>
   .saved-tab {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-lg);
-  }
-
-  h2 {
-    margin: 0 0 var(--spacing-md) 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--color-text-dark);
   }
 
   .empty-state {
     text-align: center;
-    padding: var(--spacing-lg);
-    background-color: var(--color-bg-panel);
-    border-radius: var(--radius-md);
+    padding: var(--spacing-lg) var(--spacing-md);
   }
 
-  .empty-state p {
+  .empty-title {
+    margin: 0 0 var(--spacing-md) 0;
+    font-size: 16px;
+    color: var(--color-text-dark);
+  }
+
+  .empty-text {
     margin: 0 0 var(--spacing-sm) 0;
     font-size: 14px;
     color: var(--color-text-light);
   }
 
-  .empty-state p:last-child {
-    margin: 0;
-  }
-
   .map-list {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
   }
 
-  .map-card {
-    position: relative;
-    padding: var(--spacing-md);
-    background-color: var(--color-white);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    transition: all 200ms ease;
-  }
-
-  .map-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  }
-
-  .map-header {
+  .map-item {
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
     gap: var(--spacing-md);
+    padding: var(--spacing-md) 0;
   }
 
-  .map-name-wrapper {
+  .map-thumbnail {
+    width: 64px;
+    height: 64px;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: var(--color-bg-panel);
+    flex-shrink: 0;
+  }
+
+  .map-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .map-details {
     flex: 1;
+    min-width: 0;
+  }
+
+  .map-name-row {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
   }
 
   .map-name {
-    margin: 0;
     font-size: 16px;
     font-weight: 600;
     color: var(--color-text-dark);
   }
 
-  .pin-count {
-    font-size: 12px;
-    color: var(--color-text-light);
-  }
-
-  .map-date {
-    margin: 0;
-    font-size: 12px;
-    color: var(--color-text-light);
-  }
-
-  .menu-button {
-    padding: 4px 8px;
+  .edit-name-btn {
+    width: 20px;
+    height: 20px;
     border: none;
     background: none;
-    color: var(--color-text-primary);
-    font-size: 18px;
+    padding: 0;
     cursor: pointer;
-    transition: all 200ms ease;
+    opacity: 0.6;
   }
 
-  .menu-button:hover {
-    color: var(--color-brand);
+  .edit-name-btn:hover {
+    opacity: 1;
   }
 
-  .menu-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 8px;
-    background-color: var(--color-white);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    min-width: 140px;
-    z-index: 10;
-    overflow: hidden;
+  .edit-name-btn img {
+    width: 16px;
+    height: 16px;
   }
 
-  .menu-item {
-    display: block;
+  .name-input {
     width: 100%;
-    padding: var(--spacing-md);
-    border: none;
-    background: none;
-    text-align: left;
-    font-size: 14px;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    transition: all 150ms ease;
-  }
-
-  .menu-item:hover {
-    background-color: var(--color-bg-panel);
-  }
-
-  .menu-item.delete {
-    color: #ab0000;
-  }
-
-  .menu-item.delete:hover {
-    background-color: rgba(171, 0, 0, 0.1);
-  }
-
-  .edit-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-
-  .map-name-input {
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 4px 8px;
     border: 1px solid var(--color-brand);
-    border-radius: var(--radius-md);
-    font-size: 14px;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text-dark);
     font-family: inherit;
-    color: var(--color-text-primary);
   }
 
-  .map-name-input:focus {
+  .name-input:focus {
     outline: none;
     box-shadow: 0 0 0 2px rgba(84, 34, 176, 0.1);
   }
 
-  .edit-buttons {
+  .map-meta {
     display: flex;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-md);
   }
 
-  .save-btn,
-  .cancel-btn {
-    flex: 1;
-    padding: var(--spacing-sm);
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: var(--color-text-light);
+  }
+
+  .meta-icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+  }
+
+  .menu-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .menu-btn img {
+    width: 20px;
+    height: 20px;
+  }
+
+  .action-toolbar {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-left: 80px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     background-color: var(--color-white);
-    font-size: 13px;
-    font-weight: 500;
+  }
+
+  .toolbar-btn {
+    border: none;
+    background: none;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: var(--color-text-dark);
     cursor: pointer;
-    transition: all 200ms ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
-  .save-btn {
-    background-color: var(--color-brand);
-    color: var(--color-white);
-    border-color: var(--color-brand);
+  .toolbar-btn:hover {
+    color: var(--color-brand);
   }
 
-  .save-btn:hover {
-    background-color: #4318a3;
+  .toolbar-btn.delete-confirm {
+    color: var(--color-brand);
   }
 
-  .cancel-btn:hover {
-    background-color: var(--color-bg-panel);
+  .toolbar-icon {
+    width: 16px;
+    height: 16px;
   }
 
-  .footer-note {
-    margin: var(--spacing-md) 0 0 0;
-    font-size: 12px;
-    color: var(--color-text-light);
-    text-align: center;
+  .delete-icon {
+    filter: invert(17%) sepia(87%) saturate(3063%) hue-rotate(262deg) brightness(87%) contrast(101%);
+  }
+
+  .toolbar-divider {
+    width: 1px;
+    height: 20px;
+    background-color: var(--color-border);
+  }
+
+  .list-divider {
+    height: 1px;
+    background-color: #eee;
   }
 </style>

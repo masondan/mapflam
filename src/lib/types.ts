@@ -1,6 +1,6 @@
 // Type definitions for MapFlam
 
-export type IconType = 'pin1' | 'pin2' | 'pin3';
+export type IconType = 'pin1' | 'pin2' | 'pin3' | 'pin4' | 'pin5' | 'pin6';
 export type PinSize = 1 | 2 | 3 | 4 | 5; // 1=small, 5=large, 3=default
 export type LabelSize = 'small' | 'medium' | 'large';
 export type MapFormat = 'square' | '16:9' | '9:16';
@@ -71,20 +71,23 @@ export const COLOR_PALETTE = [
   '#FFFFFF', // white
 ];
 
-// Icon metadata: maps icon type to SVG filename (without extension)
+// Icon metadata: maps icon type to SVG filename (with extension)
 export const ICON_FILES: Record<IconType, string> = {
-  pin1: 'icon-pin1',
-  pin2: 'icon-pin2',
-  pin3: 'icon-pin3',
+  pin1: 'icon-pin1-fill.svg',
+  pin2: 'icon-pin1.svg',
+  pin3: 'icon-pin2-fill.svg',
+  pin4: 'icon-pin2.svg',
+  pin5: 'icon-pin3-fill.svg',
+  pin6: 'icon-pin3.svg',
 };
 
 // Size map: PinSize to CSS scale factor
 export const SIZE_MAP: Record<PinSize, number> = {
-  1: 0.6, // 12px
-  2: 0.75, // 18px
-  3: 1.0, // 24px default
-  4: 1.25, // 30px
-  5: 1.5, // 36px
+  1: 1.2, // 24px
+  2: 1.5, // 36px
+  3: 2.0, // 48px default (doubled from 24px)
+  4: 2.5, // 60px
+  5: 3.0, // 72px
 };
 
 // Label sizes

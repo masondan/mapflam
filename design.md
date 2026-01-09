@@ -188,7 +188,7 @@ are auto-saved for 30 days]
 The modal also has a Cancel text button and ‘Start new map’ confirmation. When tapped the app reverts to initial view and the closed map can be viewed in the Saved tab.
 
 Visuals
-newpin
+newmap
 
 
 ## Saved Tab

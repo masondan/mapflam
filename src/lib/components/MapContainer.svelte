@@ -1,81 +1,79 @@
 <script lang="ts">
   import L from 'leaflet';
-  import { onMount } from 'svelte';
+  import 'leaflet/dist/leaflet.css';
+  import { onMount, onDestroy } from 'svelte';
   import { leafletMap, mapCenter, mapZoom, markers, selectedBaseMap, selectedFormat } from '../stores';
-  import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES } from '../types';
+  import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES, ICON_FILES } from '../types';
   import type { Marker, MapFormat, BaseMap } from '../types';
 
   let mapContainer: HTMLDivElement;
   let map: L.Map | null = null;
   let leafletMarkers: Map<string, L.Marker> = new Map();
   let panZoomTimeout: ReturnType<typeof setTimeout>;
+  let currentFormat: MapFormat = 'square';
 
-  // Responsive map dimensions are handled via CSS aspect-ratio in the DOM
+  const unsubscribeFormat = selectedFormat.subscribe((f) => {
+    currentFormat = f;
+    if (map) {
+      setTimeout(() => map?.invalidateSize(), 100);
+    }
+  });
 
   onMount(() => {
-    // Initialize Leaflet map
     let initialCenter = { lat: 6.5244, lng: 3.3792 };
     let initialZoom = 12;
     
-    mapCenter.subscribe((c) => {
+    const unsubCenter = mapCenter.subscribe((c) => {
       initialCenter = c;
-    })();
-    mapZoom.subscribe((z) => {
-      initialZoom = z;
-    })();
+    });
+    unsubCenter();
     
-    map = L.map(mapContainer).setView([initialCenter.lat, initialCenter.lng], initialZoom);
+    const unsubZoom = mapZoom.subscribe((z) => {
+      initialZoom = z;
+    });
+    unsubZoom();
+    
+    map = L.map(mapContainer, {
+      zoomControl: false,
+      attributionControl: true,
+    }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
 
-    // Set initial tile layer
     let initialBaseMap: BaseMap = 'positron';
-    selectedBaseMap.subscribe((b) => {
+    const unsubBase = selectedBaseMap.subscribe((b) => {
       initialBaseMap = b;
-    })();
+    });
+    unsubBase();
+    
     updateTileLayer(initialBaseMap);
 
-    // Store map instance in global state
     leafletMap.set(map);
 
-    // Debounce pan/zoom events to avoid excessive store updates
     map.on('moveend', () => {
       clearTimeout(panZoomTimeout);
       panZoomTimeout = setTimeout(() => {
-        const center = map!.getCenter();
-        mapCenter.set({ lat: center.lat, lng: center.lng });
-        mapZoom.set(map!.getZoom());
+        if (map) {
+          const center = map.getCenter();
+          mapCenter.set({ lat: center.lat, lng: center.lng });
+          mapZoom.set(map.getZoom());
+        }
       }, 300);
     });
 
-    // Sync markers with Leaflet layer
     const unsubscribeMarkers = markers.subscribe(($markers) => {
       updateMapMarkers($markers);
     });
 
-    // Handle base map changes
     const unsubscribeBaseMap = selectedBaseMap.subscribe(($baseMap) => {
       if (map) updateTileLayer($baseMap);
-    });
-
-    // Handle map center/zoom changes from stores
-    const unsubscribeCenter = mapCenter.subscribe(($center) => {
-      if (map && map.getCenter().lat !== $center.lat) {
-        map.setView([$center.lat, $center.lng], map.getZoom(), { animate: true });
-      }
-    });
-
-    const unsubscribeZoom = mapZoom.subscribe(($newZoom) => {
-      if (map && map.getZoom() !== $newZoom) {
-        map.setZoom($newZoom);
-      }
     });
 
     return () => {
       unsubscribeMarkers();
       unsubscribeBaseMap();
-      unsubscribeCenter();
-      unsubscribeZoom();
+      unsubscribeFormat();
       if (map) {
         map.remove();
+        map = null;
       }
     };
   });
@@ -83,26 +81,22 @@
   function updateTileLayer(baseMap: BaseMap): void {
     if (!map) return;
 
-    // Remove existing layers
     map.eachLayer((layer) => {
       if (layer instanceof L.TileLayer) {
         map!.removeLayer(layer);
       }
     });
 
-    // Add new tile layer
     const tileConfig = BASE_MAP_TILES[baseMap];
     L.tileLayer(tileConfig.url, {
       attribution: tileConfig.attribution,
       maxZoom: 19,
-      subdomains: ['a', 'b', 'c'],
     }).addTo(map);
   }
 
   function updateMapMarkers(markerList: Marker[]): void {
     if (!map) return;
 
-    // Remove markers no longer in the list
     leafletMarkers.forEach((leafletMarker, id) => {
       if (!markerList.find((m) => m.id === id)) {
         map!.removeLayer(leafletMarker);
@@ -110,14 +104,11 @@
       }
     });
 
-    // Add or update markers
     markerList.forEach((marker) => {
       if (leafletMarkers.has(marker.id)) {
-        // Update existing marker
         const leafletMarker = leafletMarkers.get(marker.id)!;
         leafletMarker.setLatLng([marker.lat, marker.lng]);
         
-        // Re-render icon if any visual properties changed
         const icon = L.divIcon({
           html: createMarkerHTML(marker),
           iconSize: [24, 24],
@@ -127,7 +118,6 @@
         });
         leafletMarker.setIcon(icon);
       } else {
-        // Create new marker
         const leafletMarker = createLeafletMarker(marker);
         leafletMarkers.set(marker.id, leafletMarker);
         if (map) {
@@ -138,7 +128,6 @@
   }
 
   function createLeafletMarker(marker: Marker): L.Marker {
-    // Create custom icon with SVG
     const icon = L.divIcon({
       html: createMarkerHTML(marker),
       iconSize: [24, 24],
@@ -149,7 +138,6 @@
 
     const leafletMarker = L.marker([marker.lat, marker.lng], { icon, draggable: true });
 
-    // Handle drag events to update marker in store
     leafletMarker.on('dragend', () => {
       const latlng = leafletMarker.getLatLng();
       markers.update((markerList) => {
@@ -162,9 +150,7 @@
       });
     });
 
-    // Click to edit
     leafletMarker.on('click', () => {
-      // Dispatch event for app to handle
       const event = new CustomEvent('marker-click', { detail: { markerId: marker.id } });
       window.dispatchEvent(event);
     });
@@ -175,72 +161,69 @@
   function createMarkerHTML(marker: Marker): string {
     const scale = SIZE_MAP[marker.size] || 1;
     const opacity = marker.opacity / 100;
+    const iconFileName = ICON_FILES[marker.icon] || 'icon-pin1-fill.svg';
 
-    // SVG icon with inline styling
     const iconSvg = `
-      <svg width="${24 * scale}" height="${24 * scale}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity: ${opacity}">
-        <path d="M12 2C6.48 2 2 6.48 2 12c0 7.25 10 13 10 13s10-5.75 10-13c0-5.52-4.48-10-10-10zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" fill="${marker.color}" />
-      </svg>
+      <div style="
+        width: ${24 * scale}px;
+        height: ${24 * scale}px;
+        opacity: ${opacity};
+        background-image: url('/icons/${iconFileName}');
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        filter: drop-shadow(0px 0px 0px ${marker.color});
+      "></div>
     `;
 
-    const labelHTML = marker.label
-      ? `
-        <div style="
-          position: absolute;
-          bottom: -30px;
-          left: 50%;
-          transform: translateX(-50%) translateX(${marker.label.offsetX}px) translateY(${marker.label.offsetY}px);
-          background-color: ${marker.label.bgColor};
-          opacity: ${marker.label.bgOpacity / 100};
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: ${LABEL_SIZES[marker.label.size]};
-          font-weight: bold;
-          white-space: nowrap;
-          color: ${marker.label.bgColor === '#FFFFFF' ? '#333333' : '#FFFFFF'};
-        ">
-          ${marker.label.text}
-        </div>
-      `
+    const labelHTML = marker.label && marker.label.text
+      ? `<div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%) translateX(${marker.label.offsetX}px) translateY(calc(-100% - 2px)) translateY(${marker.label.offsetY}px); width: max-content; max-width: 320px; box-sizing: border-box; background-color: ${marker.label.bgColor}; opacity: ${marker.label.bgOpacity / 100}; padding: 4px 8px; border-radius: 4px; font-size: ${LABEL_SIZES[marker.label.size]}; font-weight: bold; font-family: 'Inter', sans-serif; white-space: pre-wrap; text-align: center; line-height: 1.15; color: ${marker.label.bgColor === '#FFFFFF' ? '#333333' : '#FFFFFF'}; pointer-events: none;">${marker.label.text.trim()}</div>`
       : '';
 
-    return `<div style="position: relative;">${iconSvg}${labelHTML}</div>`;
+    return `<div style="position: relative; overflow: visible;">${iconSvg}${labelHTML}</div>`;
   }
 
-  function updateMarkerPopup(leafletMarker: L.Marker, marker: Marker): void {
-    // Update popup or tooltip if exists (for future phases)
-  }
-
-  // Helper to handle marker drag start (visual feedback)
-  onMount(() => {
-    // Add custom CSS for dragging state
-    if (!document.getElementById('mapflam-marker-styles')) {
-      const style = document.createElement('style');
-      style.id = 'mapflam-marker-styles';
-      style.textContent = `
-        .custom-marker {
-          cursor: grab;
-        }
-        .custom-marker.dragging {
-          cursor: grabbing;
-        }
-      `;
-      document.head.appendChild(style);
+  function getAspectRatio(format: MapFormat): string {
+    switch (format) {
+      case '9:16':
+        return '9 / 16';
+      case '16:9':
+        return '16 / 9';
+      case 'square':
+      default:
+        return '1 / 1';
     }
-  });
+  }
 </script>
 
 <div
   bind:this={mapContainer}
-  id="map"
+  class="map-wrapper"
+  style="aspect-ratio: {getAspectRatio(currentFormat)};"
 ></div>
 
 <style>
-  :global(#map) {
-    background-color: #f0f0f0;
+  .map-wrapper {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+
+  :global(.leaflet-container) {
+    width: 100%;
+    height: 100%;
+    background-color: #e0e0e0;
+    font-family: 'Inter', sans-serif;
   }
 
   :global(.custom-marker) {
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    background: transparent;
+    border: none;
+    overflow: visible !important;
+  }
+
+  :global(.leaflet-control-attribution) {
+    font-size: 9px;
+    background-color: rgba(255, 255, 255, 0.7) !important;
   }
 </style>
