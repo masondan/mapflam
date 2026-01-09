@@ -8,7 +8,6 @@ export default defineConfig({
     open: true
   },
   build: {
-    target: 'esnext',
-    minify: 'terser'
+    target: 'esnext'
   }
 })

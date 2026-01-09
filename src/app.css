@@ -1,0 +1,87 @@
+/* Global styles for MapFlam */
+
+:root {
+  --color-brand: #5422b0;
+  --color-brand-light: #f0e6f7;
+  --color-text-primary: #777777;
+  --color-text-dark: #333333;
+  --color-text-light: #999999;
+  --color-bg-panel: #efefef;
+  --color-white: #ffffff;
+  --color-border: #777777;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --radius-md: 8px;
+  --color-picker-0: #5422b0;
+  --color-picker-1: #02441f;
+  --color-picker-2: #004269;
+  --color-picker-3: #ab0000;
+  --color-picker-4: #000000;
+  --color-picker-5: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--color-white);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+}
+
+/* Leaflet overrides */
+.leaflet-container {
+  background-color: #f0f0f0 !important;
+  font-family: 'Inter', sans-serif;
+}
+
+.leaflet-control-zoom {
+  display: none; /* Hide default zoom controls */
+}
+
+.leaflet-attribution-control {
+  font-size: 10px;
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+/* Custom marker styles */
+.custom-marker {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.custom-marker:active {
+  cursor: grabbing;
+}
+
+/* Touch feedback */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Responsive design */
+@media (min-width: 768px) {
+  body {
+    background: linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.02) 0%,
+      rgba(0, 0, 0, 0) 10%,
+      rgba(0, 0, 0, 0) 90%,
+      rgba(0, 0, 0, 0.02) 100%
+    );
+  }
+}
