@@ -14,10 +14,24 @@
 
   onMount(() => {
     // Initialize Leaflet map
-    map = L.map(mapContainer).setView([$mapCenter.lat, $mapCenter.lng], $mapZoom);
+    let initialCenter = { lat: 6.5244, lng: 3.3792 };
+    let initialZoom = 12;
+    
+    mapCenter.subscribe((c) => {
+      initialCenter = c;
+    })();
+    mapZoom.subscribe((z) => {
+      initialZoom = z;
+    })();
+    
+    map = L.map(mapContainer).setView([initialCenter.lat, initialCenter.lng], initialZoom);
 
     // Set initial tile layer
-    updateTileLayer($selectedBaseMap);
+    let initialBaseMap: BaseMap = 'positron';
+    selectedBaseMap.subscribe((b) => {
+      initialBaseMap = b;
+    })();
+    updateTileLayer(initialBaseMap);
 
     // Store map instance in global state
     leafletMap.set(map);

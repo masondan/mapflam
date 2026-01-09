@@ -73,12 +73,11 @@
     collapse();
   }
 
-  function handleSearch(e: Event) {
-    const customEvent = e as CustomEvent;
+  function handleSearch(e: CustomEvent<{ lat: number; lng: number; name: string }>) {
     if (currentPin) {
-      currentPin.lat = customEvent.detail.lat;
-      currentPin.lng = customEvent.detail.lng;
-      currentPin.name = customEvent.detail.name.split(',')[0]; // Use first part as name
+      currentPin.lat = e.detail.lat;
+      currentPin.lng = e.detail.lng;
+      currentPin.name = e.detail.name.split(',')[0]; // Use first part as name
     }
   }
 
@@ -210,7 +209,7 @@
                 on:click={() => updateIcon(icon)}
                 title={icon}
               >
-                <img src={`/icons/markers/${ICON_FILES[icon]}-fill.svg`} alt={icon} />
+                <img src={`/icons/${ICON_FILES[icon]}-fill.svg`} alt={icon} />
               </button>
             {/each}
           </div>

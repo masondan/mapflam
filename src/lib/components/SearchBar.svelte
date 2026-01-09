@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import { searchQuery, searchResults, isSearching } from '../stores';
   import { searchLocations } from '../services/nominatim';
   import type { NominatimResult } from '../types';
+
+  const dispatch = createEventDispatcher<{ select: { lat: number; lng: number; name: string } }>();
 
   let debounceTimer: ReturnType<typeof setTimeout>;
   let showDropdown = false;
@@ -37,15 +40,11 @@
   }
 
   function selectResult(result: NominatimResult) {
-    // Dispatch event for parent to handle selection
-    const event = new CustomEvent('select', {
-      detail: {
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon),
-        name: result.display_name,
-      },
+    dispatch('select', {
+      lat: parseFloat(result.lat),
+      lng: parseFloat(result.lon),
+      name: result.display_name,
     });
-    window.dispatchEvent(event);
 
     // Reset UI
     searchQuery.set('');
