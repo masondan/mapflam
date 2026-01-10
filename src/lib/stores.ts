@@ -31,6 +31,7 @@ export const insetConfig = writable<InsetConfig>({
     lng: 3.3792,
     color: '#5422b0',
     size: 3,
+    opacity: 100,
   },
 });
 

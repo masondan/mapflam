@@ -92,18 +92,7 @@
     }
   }
 
-  function placeManualPin(pinId: string) {
-    let center = { lat: 6.5244, lng: 3.3792 };
-    mapCenter.subscribe((c) => (center = c))();
-    markers.update((list) => {
-      const pin = list.find((m) => m.id === pinId);
-      if (pin) {
-        pin.lat = center.lat;
-        pin.lng = center.lng;
-      }
-      return list;
-    });
-  }
+
 
   function updateIcon(pinId: string, icon: IconType) {
     markers.update((list) => {
@@ -276,24 +265,30 @@
     {#each markerList as pin (pin.id)}
       <div class="pin-container">
         <div class="pin-bar">
-          <button
-            class="toggle-btn"
-            on:click={() => toggleExpand(pin.id)}
-            aria-label={currentEditingId === pin.id ? 'Collapse' : 'Expand'}
-          >
-            <img
-              src="/icons/{currentEditingId === pin.id
-                ? 'icon-collapse.svg'
-                : 'icon-expand.svg'}"
-              alt=""
+          <div 
+            class="pin-preview"
+            style="--pin-color: {pin.color}; --pin-icon-url: url('/icons/{ICON_FILES[pin.icon]}')"
+          ></div>
+          <div class="pin-name-wrapper">
+            <input
+              type="text"
+              class="pin-name-input"
+              value={pin.name}
+              on:input={(e) => updateName(pin.id, e.currentTarget.value)}
             />
-          </button>
-          <input
-            type="text"
-            class="pin-name-input"
-            value={pin.name}
-            on:input={(e) => updateName(pin.id, e.currentTarget.value)}
-          />
+            <button
+              class="expand-chevron"
+              on:click={() => toggleExpand(pin.id)}
+              aria-label={currentEditingId === pin.id ? 'Collapse' : 'Expand'}
+            >
+              <img
+                src="/icons/{currentEditingId === pin.id
+                  ? 'icon-collapse.svg'
+                  : 'icon-expand.svg'}"
+                alt=""
+              />
+            </button>
+          </div>
           <button class="center-btn" on:click={() => centerMapOnPin(pin.id)} aria-label="Center map on this pin">
             <img src="/icons/icon-center.svg" alt="" />
           </button>
@@ -302,12 +297,7 @@
         {#if currentEditingId === pin.id}
         <div class="pin-card">
           <div class="search-row">
-            <div class="search-wrapper">
-              <SearchBar on:select={(e) => handleSearch(pin.id, e)} />
-            </div>
-            <button class="pushpin-btn" on:click={() => placeManualPin(pin.id)} aria-label="Place pin manually">
-              <img src="/icons/icon-pushpin-fill.svg" alt="" />
-            </button>
+            <SearchBar on:select={(e) => handleSearch(pin.id, e)} />
           </div>
 
           <div class="icon-selector">
@@ -315,11 +305,11 @@
               <button
                 class="icon-btn"
                 class:active={pin.icon === icon}
-                style="--active-color: {pin.color}"
+                style="--active-color: {pin.color}; --icon-color: {pin.color}; --icon-url: url('/icons/{ICON_FILES[icon]}')"
                 on:click={() => updateIcon(pin.id, icon)}
                 aria-label="Select {icon}"
               >
-                <img src="/icons/{ICON_FILES[icon]}" alt={icon} style="--icon-color: {pin.color}" />
+                <span class="icon-shape" aria-hidden="true"></span>
               </button>
             {/each}
           </div>
@@ -447,23 +437,7 @@
                 </div>
               </div>
 
-              <div class="sub-section">
-                <span class="section-label">Label background</span>
-                <div class="color-row">
-                  {#each COLOR_PALETTE as color}
-                    <button
-                      class="color-btn small"
-                      class:active={pin.label.bgColor === color}
-                      class:white={color === '#FFFFFF'}
-                      style="background-color: {color}"
-                      on:click={() => updateLabelBgColor(pin.id, color)}
-                      aria-label="Select {color} background"
-                    ></button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="nudge-section">
+              <div class="nudge-row-container">
                 <span class="section-label">Nudge label</span>
                 <div class="nudge-row">
                   <button class="nudge-btn" on:click={() => nudgeLabel(pin.id, 'left')} aria-label="Nudge left">
@@ -478,6 +452,22 @@
                   <button class="nudge-btn" on:click={() => nudgeLabel(pin.id, 'down')} aria-label="Nudge down">
                     <img src="/icons/icon-down.svg" alt="" />
                   </button>
+                </div>
+              </div>
+
+              <div class="sub-section">
+                <span class="section-label">Label background</span>
+                <div class="color-row">
+                  {#each COLOR_PALETTE as color}
+                    <button
+                      class="color-btn small"
+                      class:active={pin.label.bgColor === color}
+                      class:white={color === '#FFFFFF'}
+                      style="background-color: {color}"
+                      on:click={() => updateLabelBgColor(pin.id, color)}
+                      aria-label="Select {color} background"
+                    ></button>
+                  {/each}
                 </div>
               </div>
             </div>
@@ -510,31 +500,39 @@
     gap: var(--spacing-sm);
   }
 
-  .toggle-btn {
-    width: 44px;
-    height: 44px;
-    border: none;
-    background-color: var(--color-text-primary);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .pin-preview {
+    width: 32px;
+    height: 32px;
     flex-shrink: 0;
+    background-color: var(--pin-color, #555);
+    -webkit-mask-image: var(--pin-icon-url);
+    mask-image: var(--pin-icon-url);
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
   }
 
-  .toggle-btn img {
-    width: 20px;
-    height: 20px;
-    filter: brightness(0) invert(1);
+  .pin-name-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background-color: var(--color-bg-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .pin-name-wrapper:focus-within {
+    border-color: var(--color-brand);
   }
 
   .pin-name-input {
     flex: 1;
-    padding: 12px var(--spacing-md);
-    background-color: var(--color-bg-panel);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    padding: 10px var(--spacing-md);
+    background-color: transparent;
+    border: none;
     font-size: 14px;
     font-family: inherit;
     color: var(--color-text-dark);
@@ -542,12 +540,11 @@
 
   .pin-name-input:focus {
     outline: none;
-    border-color: var(--color-brand);
   }
 
-  .center-btn {
-    width: 44px;
-    height: 44px;
+  .expand-chevron {
+    width: 40px;
+    height: 40px;
     border: none;
     background-color: transparent;
     cursor: pointer;
@@ -557,9 +554,29 @@
     flex-shrink: 0;
   }
 
+  .expand-chevron img {
+    width: 20px;
+    height: 20px;
+    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) brightness(95%) contrast(89%);
+  }
+
+  .center-btn {
+    width: 36px;
+    height: 44px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-left: -4px;
+  }
+
   .center-btn img {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
+    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) brightness(95%) contrast(89%);
   }
 
   .pin-card {
@@ -575,29 +592,6 @@
   .search-row {
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
-  }
-
-  .search-wrapper {
-    flex: 1;
-  }
-
-  .pushpin-btn {
-    width: 44px;
-    height: 44px;
-    border: none;
-    background-color: transparent;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .pushpin-btn img {
-    width: 24px;
-    height: 24px;
-    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
   }
 
   .icon-selector {
@@ -623,13 +617,23 @@
     border-width: 2px;
   }
 
-  .icon-btn:not(.active) img {
-    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
-  }
-
-  .icon-btn img {
+  .icon-btn .icon-shape {
     width: 32px;
     height: 32px;
+    display: block;
+    background-color: var(--icon-color, #777);
+    -webkit-mask-image: var(--icon-url);
+    mask-image: var(--icon-url);
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  .icon-btn:not(.active) .icon-shape {
+    background-color: #999;
   }
 
   .slider-group {
@@ -805,12 +809,11 @@
     color: var(--color-text-primary);
   }
 
-  .nudge-section {
+  .nudge-row-container {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: var(--spacing-sm) 0;
-    border-bottom: 1px solid var(--color-text-primary);
   }
 
   .nudge-row {
@@ -852,8 +855,8 @@
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    margin-top: var(--spacing-md);
-    padding-top: var(--spacing-md);
+    margin-top: 0;
+    padding-top: 0;
   }
 
   .delete-btn:hover {

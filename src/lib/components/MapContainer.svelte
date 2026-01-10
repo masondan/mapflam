@@ -83,8 +83,13 @@
 
     const unsubscribeInset = insetConfig.subscribe((config) => {
       currentInsetConfig = config;
-      if (config.enabled && insetContainer && !insetMap) {
-        setTimeout(initInsetMap, 50);
+      if (config.enabled && !insetMap) {
+        // Use requestAnimationFrame to ensure DOM is updated before initializing
+        requestAnimationFrame(() => {
+          if (insetContainer && !insetMap && currentInsetConfig.enabled) {
+            initInsetMap();
+          }
+        });
       } else if (!config.enabled && insetMap) {
         destroyInsetMap();
       } else if (insetMap) {
@@ -122,6 +127,13 @@
     previousInsetSize = currentInsetConfig.size;
     updateInsetTileLayer(currentInsetConfig.baseMap);
     updateInsetSpotlight(currentInsetConfig);
+    
+    // Ensure tiles load properly after container is visible
+    requestAnimationFrame(() => {
+      if (insetMap) {
+        insetMap.invalidateSize();
+      }
+    });
   }
 
   function destroyInsetMap() {
@@ -151,7 +163,7 @@
     updateInsetSpotlight(config);
   }
 
-  function createSpotlightIcon(color: string, size: number): L.DivIcon {
+  function createSpotlightIcon(color: string, size: number, opacity: number): L.DivIcon {
     return L.divIcon({
       html: `<div style="
         width: ${size}px;
@@ -160,6 +172,7 @@
         border-radius: 50%;
         background: transparent;
         box-sizing: border-box;
+        opacity: ${opacity / 100};
       "></div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
@@ -179,7 +192,7 @@
     }
 
     const size = SPOTLIGHT_SIZE_MAP[config.spotlight.size];
-    const icon = createSpotlightIcon(config.spotlight.color, size);
+    const icon = createSpotlightIcon(config.spotlight.color, size, config.spotlight.opacity);
 
     if (insetSpotlightMarker) {
       insetSpotlightMarker.setLatLng([config.spotlight.lat, config.spotlight.lng]);
@@ -297,11 +310,15 @@
         width: ${24 * scale}px;
         height: ${24 * scale}px;
         opacity: ${opacity};
-        background-image: url('/icons/${iconFileName}');
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-        filter: drop-shadow(0px 0px 0px ${marker.color});
+        background-color: ${marker.color};
+        -webkit-mask-image: url('/icons/${iconFileName}');
+        mask-image: url('/icons/${iconFileName}');
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
       "></div>
     `;
 

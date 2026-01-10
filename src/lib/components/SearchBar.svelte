@@ -87,7 +87,7 @@
     <input
       bind:this={inputElement}
       type="text"
-      placeholder="Search or tap pin to add"
+      placeholder="Search location"
       on:input={handleInput}
       on:keydown={handleKeydown}
       on:focus={handleFocus}

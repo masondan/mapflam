@@ -2,6 +2,7 @@ import type { SavedMap, Marker, MapFormat, BaseMap } from '../types';
 import { savedMaps } from '../stores';
 
 const STORAGE_KEY = 'mapflam_saved';
+const WORKING_STATE_KEY = 'mapflam_working_state';
 const EXPIRY_DAYS = 30;
 const MAX_MAPS = 5;
 
@@ -80,6 +81,74 @@ export function updateMapName(id: string, newName: string): void {
   } catch (error) {
     console.error('Failed to update map name:', error);
   }
+}
+
+/**
+ * Save current working state (not yet a finalized map)
+ * Used for auto-save recovery if app crashes/closes
+ */
+export interface WorkingState {
+  markers: Marker[];
+  selectedFormat: MapFormat;
+  selectedBaseMap: BaseMap;
+  mapCenter: { lat: number; lng: number };
+  mapZoom: number;
+  lastAutoSave: number; // timestamp
+}
+
+export function saveWorkingState(state: WorkingState): void {
+  try {
+    localStorage.setItem(WORKING_STATE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error('Failed to save working state:', error);
+  }
+}
+
+export function loadWorkingState(): WorkingState | null {
+  try {
+    const data = localStorage.getItem(WORKING_STATE_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Failed to load working state:', error);
+    return null;
+  }
+}
+
+export function clearWorkingState(): void {
+  try {
+    localStorage.removeItem(WORKING_STATE_KEY);
+  } catch (error) {
+    console.error('Failed to clear working state:', error);
+  }
+}
+
+/**
+ * Convert working state to saved map
+ * Called when app closes with unsaved work or user explicitly saves
+ */
+export function promoteWorkingStateToSavedMap(workingState: WorkingState | null): SavedMap | null {
+  if (!workingState || workingState.markers.length === 0) {
+    return null;
+  }
+
+  // Generate thumbnail from stored state (placeholder, will be updated)
+  const mapNumber = (loadSavedMaps().length % 5) + 1;
+  const savedMap: SavedMap = {
+    id: Date.now().toString(),
+    name: `Map ${mapNumber}`,
+    createdAt: Date.now(),
+    state: {
+      markers: workingState.markers,
+      selectedFormat: workingState.selectedFormat,
+      selectedBaseMap: workingState.selectedBaseMap,
+      mapCenter: workingState.mapCenter,
+      mapZoom: workingState.mapZoom,
+    },
+    pinCount: workingState.markers.length,
+    thumbnail: '', // Will be captured when explicitly saved with thumbnail button
+  };
+
+  return savedMap;
 }
 
 /**

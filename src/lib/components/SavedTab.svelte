@@ -29,14 +29,25 @@
     expandedMenuId = null;
   }
 
+  function handleDownloadMap(map: SavedMap) {
+    // Load map state, then trigger export on create tab
+    markers.set(map.state.markers);
+    selectedFormat.set(map.state.selectedFormat);
+    selectedBaseMap.set(map.state.selectedBaseMap);
+    mapCenter.set(map.state.mapCenter);
+    mapZoom.set(map.state.mapZoom);
+    activeTab.set('create');
+    expandedMenuId = null;
+  }
+
   function toggleMenu(mapId: string) {
-    if (expandedMenuId === mapId) {
-      expandedMenuId = null;
-      confirmingDeleteId = null;
-    } else {
-      expandedMenuId = mapId;
-      confirmingDeleteId = null;
-    }
+    expandedMenuId = expandedMenuId === mapId ? null : mapId;
+    confirmingDeleteId = null;
+  }
+
+  function closeMenu() {
+    expandedMenuId = null;
+    confirmingDeleteId = null;
   }
 
   function initiateDelete(mapId: string) {
@@ -53,7 +64,6 @@
   function startEditing(map: SavedMap) {
     editingMapId = map.id;
     editingMapName = map.name;
-    expandedMenuId = null;
   }
 
   function saveMapName(map: SavedMap) {
@@ -99,7 +109,7 @@
       {#each savedMaps as map (map.id)}
         <div class="map-item">
           <div class="map-thumbnail">
-            <img src="/icons/logo-mapflam-purple-gen.png" alt="Map thumbnail" />
+            <img src={map.thumbnail} alt="Map thumbnail" />
           </div>
           
           <div class="map-details">
@@ -125,6 +135,9 @@
                 <img src="/icons/icon-time.svg" alt="" class="meta-icon" />
                 {formatTimeAgo(map.createdAt)}
               </span>
+            </div>
+            
+            <div class="map-pins">
               <span class="meta-item">
                 <img src="/icons/icon-pushpin.svg" alt="" class="meta-icon" />
                 {map.state.markers.length}
@@ -138,25 +151,28 @@
         </div>
 
         {#if expandedMenuId === map.id}
-          <div class="action-toolbar">
+          <div class="action-buttons">
+            <div style="flex-direction: row; display: flex; align-items: center; gap: 0;">
+              <button class="action-btn" on:click={() => closeMenu()}>Cancel</button>
+              <span class="divider"></span>
+              <button class="action-btn" on:click={() => initiateDelete(map.id)}>Delete</button>
+              <span class="divider"></span>
+              <button class="action-btn" on:click={() => handleDownloadMap(map)}>Download</button>
+              <span class="divider"></span>
+              <button class="action-btn" on:click={() => handleEditMap(map)}>Edit</button>
+            </div>
+            
             {#if confirmingDeleteId === map.id}
-              <button class="toolbar-btn delete-confirm" on:click={() => confirmDelete(map)}>
-                <img src="/icons/icon-trash-fill.svg" alt="" class="toolbar-icon delete-icon" />
-                Delete?
-              </button>
-            {:else}
-              <button class="toolbar-btn" on:click={() => initiateDelete(map.id)}>
-                <img src="/icons/icon.trash.svg" alt="" class="toolbar-icon" />
-              </button>
+              <div class="delete-confirmation">
+                <button class="confirm-btn cancel-btn" on:click={() => (confirmingDeleteId = null)}>
+                  Cancel
+                </button>
+                <span class="confirm-divider"></span>
+                <button class="confirm-btn delete-btn" on:click={() => confirmDelete(map)}>
+                  Delete
+                </button>
+              </div>
             {/if}
-            <span class="toolbar-divider"></span>
-            <button class="toolbar-btn" on:click={() => handleEditMap(map)}>
-              Download
-            </button>
-            <span class="toolbar-divider"></span>
-            <button class="toolbar-btn" on:click={() => handleEditMap(map)}>
-              Edit
-            </button>
           </div>
         {/if}
         
@@ -202,8 +218,8 @@
   }
 
   .map-thumbnail {
-    width: 64px;
-    height: 64px;
+    width: 102px;
+    height: 102px;
     border-radius: 4px;
     overflow: hidden;
     background-color: var(--color-bg-panel);
@@ -274,6 +290,12 @@
     gap: var(--spacing-md);
   }
 
+  .map-pins {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: 4px;
+  }
+
   .meta-item {
     display: flex;
     align-items: center;
@@ -298,6 +320,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
 
   .menu-btn img {
@@ -305,49 +328,74 @@
     height: 20px;
   }
 
-  .action-toolbar {
+  .action-buttons {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    padding: var(--spacing-sm) var(--spacing-md);
-    margin-left: 80px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background-color: var(--color-white);
+    gap: 16px;
+    padding: 0;
+    margin: var(--spacing-sm) 0;
+    width: 100%;
   }
 
-  .toolbar-btn {
+  .action-btn {
     border: none;
     background: none;
-    padding: 8px 12px;
+    padding: 6px 12px;
     font-size: 14px;
-    color: var(--color-text-dark);
+    font-weight: 600;
+    color: var(--color-text-primary);
     cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: color 0.2s ease;
+  }
+
+  .action-btn:hover {
+    color: var(--color-brand);
+  }
+
+  .divider {
+    width: 1px;
+    height: 16px;
+    background-color: var(--color-text-primary);
+    margin: 0 4px;
+  }
+
+  .delete-confirmation {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 0;
+    padding: 8px 12px;
+    background-color: var(--color-brand);
+    color: var(--color-white);
+    border-radius: 8px;
+    width: fit-content;
   }
 
-  .toolbar-btn:hover {
-    color: var(--color-brand);
+  .confirm-btn {
+    border: none;
+    background: none;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--color-white);
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
   }
 
-  .toolbar-btn.delete-confirm {
-    color: var(--color-brand);
+  .cancel-btn:hover {
+    opacity: 0.8;
   }
 
-  .toolbar-icon {
-    width: 16px;
-    height: 16px;
+  .delete-btn:hover {
+    opacity: 0.8;
   }
 
-  .delete-icon {
-    filter: invert(17%) sepia(87%) saturate(3063%) hue-rotate(262deg) brightness(87%) contrast(101%);
-  }
-
-  .toolbar-divider {
+  .confirm-divider {
     width: 1px;
-    height: 20px;
-    background-color: var(--color-border);
+    height: 14px;
+    background-color: rgba(255, 255, 255, 0.4);
+    margin: 0 2px;
   }
 
   .list-divider {

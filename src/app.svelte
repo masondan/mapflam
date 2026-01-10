@@ -9,8 +9,8 @@
     mapCenter,
     mapZoom,
   } from './lib/stores';
-  import { loadSavedMaps, saveMap } from './lib/services/persistence';
-  import { exportMap } from './lib/services/export';
+  import { loadSavedMaps, saveMap, loadWorkingState, saveWorkingState, clearWorkingState, promoteWorkingStateToSavedMap } from './lib/services/persistence';
+  import { exportMap, generateThumbnail } from './lib/services/export';
   import MapContainer from './lib/components/MapContainer.svelte';
   import RatioSelector from './lib/components/RatioSelector.svelte';
   import BaseMapSelector from './lib/components/BaseMapSelector.svelte';
@@ -26,9 +26,17 @@
   let currentCenter: any = { lat: 6.5244, lng: 3.3792 };
   let currentZoom: number = 12;
   let showNewMapModal = false;
+  let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+  const AUTO_SAVE_DEBOUNCE = 2000; // 2 seconds
 
   $: activeTab.subscribe((tab) => (currentTab = tab));
-  $: markers.subscribe((m) => (currentMarkers = m));
+  $: markers.subscribe((m) => {
+    currentMarkers = m;
+    // Trigger auto-save when markers change (debounced)
+    if (m.length > 0) {
+      triggerAutoSave();
+    }
+  });
   $: selectedFormat.subscribe((f) => (currentFormat = f));
   $: selectedBaseMap.subscribe((b) => (currentBaseMap = b));
   $: mapCenter.subscribe((c) => (currentCenter = c));
@@ -36,8 +44,73 @@
 
   $: hasPins = currentMarkers.length > 0;
 
+  function triggerAutoSave() {
+    if (currentMarkers.length === 0) return; // Only auto-save if there are pins
+
+    if (autoSaveTimeout) {
+      clearTimeout(autoSaveTimeout);
+    }
+
+    autoSaveTimeout = setTimeout(() => {
+      saveWorkingState({
+        markers: currentMarkers,
+        selectedFormat: currentFormat as any,
+        selectedBaseMap: currentBaseMap as any,
+        mapCenter: currentCenter,
+        mapZoom: currentZoom,
+        lastAutoSave: Date.now(),
+      });
+      console.log('Auto-saved working state');
+    }, AUTO_SAVE_DEBOUNCE);
+  }
+
+  function saveAndPromozeWorkingStateIfNeeded() {
+    if (currentMarkers.length > 0) {
+      // If there's work in progress, promote it to a saved map before clearing
+      const workingState = {
+        markers: currentMarkers,
+        selectedFormat: currentFormat as any,
+        selectedBaseMap: currentBaseMap as any,
+        mapCenter: currentCenter,
+        mapZoom: currentZoom,
+        lastAutoSave: Date.now(),
+      };
+      const savedMap = promoteWorkingStateToSavedMap(workingState);
+      if (savedMap) {
+        saveMap(savedMap);
+        console.log('Promoted working state to saved map:', savedMap.name);
+      }
+      clearWorkingState();
+    }
+  }
+
   onMount(() => {
     loadSavedMaps();
+
+    // On app launch, if there's unsaved work from last session, promote it to saved maps
+    const workingState = loadWorkingState();
+    if (workingState && workingState.markers.length > 0) {
+      const savedMap = promoteWorkingStateToSavedMap(workingState);
+      if (savedMap) {
+        saveMap(savedMap);
+        console.log('Restored previous session work as saved map:', savedMap.name);
+      }
+      clearWorkingState();
+    }
+
+    // Setup beforeunload to save any unsaved work
+    const handleBeforeUnload = () => {
+      if (currentMarkers.length > 0) {
+        saveWorkingState({
+          markers: currentMarkers,
+          selectedFormat: currentFormat as any,
+          selectedBaseMap: currentBaseMap as any,
+          mapCenter: currentCenter,
+          mapZoom: currentZoom,
+          lastAutoSave: Date.now(),
+        });
+      }
+    };
 
     const handleMarkerClick = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -54,10 +127,15 @@
 
     window.addEventListener('marker-click', handleMarkerClick);
     window.addEventListener('edit-map', handleEditMap);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('marker-click', handleMarkerClick);
       window.removeEventListener('edit-map', handleEditMap);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (autoSaveTimeout) {
+        clearTimeout(autoSaveTimeout);
+      }
     };
   });
 
@@ -75,10 +153,30 @@
     showNewMapModal = true;
   }
 
-  function confirmNewMap() {
+  async function confirmNewMap() {
+    // First, save any auto-saved work from previous state (if it has markers)
+    saveAndPromozeWorkingStateIfNeeded();
+
+    // Generate map name: cycle through "Map 1" to "Map 5"
+    const savedMaps = loadSavedMaps();
+    const nextNumber = (savedMaps.length % 5) + 1;
+    
+    // Generate thumbnail from map container
+    let thumbnail = '';
+    try {
+      console.log('Generating thumbnail...');
+      thumbnail = await generateThumbnail('#map-container');
+      console.log('Thumbnail generated:', thumbnail.substring(0, 50) + '...');
+      if (thumbnail.startsWith('data:image/png;base64,iVBORw0K')) {
+        console.warn('Thumbnail is placeholder - map may not have rendered');
+      }
+    } catch (err) {
+      console.error('Failed to generate thumbnail:', err);
+    }
+
     const mapData: SavedMap = {
       id: Date.now().toString(),
-      name: `Map ${new Date().toLocaleString()}`,
+      name: `Map ${nextNumber}`,
       createdAt: Date.now(),
       state: {
         markers: $markers,
@@ -88,9 +186,11 @@
         mapZoom: currentZoom,
       },
       pinCount: $markers.length,
-      thumbnail: '',
+      thumbnail,
     };
+    console.log('Saving map:', mapData.name, 'with thumbnail length:', thumbnail.length);
     saveMap(mapData);
+    clearWorkingState(); // Clear working state since we just saved this map
     markers.set([]);
     showNewMapModal = false;
   }
@@ -139,7 +239,7 @@
         <PinEditor bind:this={pinEditorRef} />
 
         <button class="add-pin-button" on:click={openAddPin} aria-label="Add new pin">
-          <img src="/icons/icon-newpin.svg" alt="" class="add-pin-icon" />
+          <span class="add-pin-icon"></span>
         </button>
 
         <InsetMapEditor />
@@ -227,7 +327,7 @@
 
   .app-header {
     padding: var(--spacing-md);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid #999999;
     background-color: var(--color-white);
   }
 
@@ -237,7 +337,7 @@
   }
 
   .logo {
-    height: 40px;
+    height: 36px;
     width: auto;
   }
 
@@ -296,6 +396,7 @@
     display: flex;
     align-items: stretch;
     gap: 12px;
+    margin-top: var(--spacing-sm);
   }
 
   .map-section {
@@ -334,7 +435,16 @@
   .add-pin-icon {
     width: 56px;
     height: 56px;
-    filter: brightness(0) saturate(100%) invert(48%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(89%);
+    display: block;
+    background-color: var(--color-brand);
+    -webkit-mask-image: url('/icons/icon-newpin.svg');
+    mask-image: url('/icons/icon-newpin.svg');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
   }
 
   .action-buttons {
@@ -344,8 +454,8 @@
 
   .action-button {
     flex: 1;
-    padding: var(--spacing-md);
-    border: 2px solid var(--color-brand);
+    padding: 10px 14px;
+    border: 1px solid var(--color-brand);
     border-radius: var(--radius-md);
     background-color: var(--color-white);
     color: var(--color-brand);

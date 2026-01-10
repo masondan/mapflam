@@ -6,6 +6,7 @@
   import {
     COLOR_PALETTE,
     INSET_MAP_TILES,
+    INSET_SIZE_MAP,
     type InsetPosition,
     type InsetSize,
     type InsetBaseMap,
@@ -24,6 +25,7 @@
   let baseMapExpanded = false;
   let isDraggingSize = false;
   let isDraggingSpotlightSize = false;
+  let isDraggingSpotlightOpacity = false;
 
   const positions: { id: InsetPosition; icon: string }[] = [
     { id: 'top-right', icon: '/icons/icon-right-up-fill.svg' },
@@ -46,8 +48,13 @@
     insetConfig.update((c) => {
       if (!c.enabled) {
         editingPinId.set(null);
+        return {
+          ...c,
+          enabled: true,
+          spotlight: { ...c.spotlight, enabled: true, lat: c.center.lat, lng: c.center.lng },
+        };
       }
-      return { ...c, enabled: !c.enabled };
+      return { ...c, enabled: false };
     });
   }
 
@@ -85,6 +92,14 @@
 
   function setSize(size: InsetSize) {
     insetConfig.update((c) => ({ ...c, size }));
+  }
+
+  function setSpotlightOpacity(opacity: number) {
+    insetConfig.update((c) => ({
+      ...c,
+      spotlight: { ...c.spotlight, opacity },
+    }));
+    updateSpotlightMarker();
   }
 
   function setBaseMap(baseMap: InsetBaseMap) {
@@ -147,16 +162,19 @@
     showResults = false;
   }
 
-  function addSpotlightManually() {
-    const center = $insetConfig.center;
+  function centerSpotlightOnMap() {
+    if (!previewMap) return;
+    const center = previewMap.getCenter();
+    
     insetConfig.update((c) => ({
       ...c,
-      spotlight: { ...c.spotlight, enabled: true, lat: center.lat, lng: center.lng },
+      spotlight: { ...c.spotlight, lat: center.lat, lng: center.lng },
     }));
-    updateSpotlightMarker();
   }
 
-  function createSpotlightIcon(color: string, size: number) {
+
+
+  function createSpotlightIcon(color: string, size: number, opacity: number) {
     return L.divIcon({
       html: `<div style="
         width: ${size}px;
@@ -165,6 +183,7 @@
         border-radius: 50%;
         background: transparent;
         box-sizing: border-box;
+        opacity: ${opacity / 100};
       "></div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
@@ -184,7 +203,7 @@
     }
 
     const size = SPOTLIGHT_SIZE_MAP[config.spotlight.size];
-    const icon = createSpotlightIcon(config.spotlight.color, size);
+    const icon = createSpotlightIcon(config.spotlight.color, size, config.spotlight.opacity);
 
     if (spotlightMarker) {
       spotlightMarker.setLatLng([config.spotlight.lat, config.spotlight.lng]);
@@ -301,7 +320,7 @@
           <input
             type="text"
             class="search-input"
-            placeholder="Search or tap pin to add"
+            placeholder="Search location"
             bind:value={searchInput}
             oninput={handleSearchInput}
             onkeydown={(e) => e.key === 'Enter' && handleSearchSubmit()}
@@ -322,8 +341,8 @@
             </div>
           {/if}
         </div>
-        <button class="pushpin-btn" onclick={addSpotlightManually} aria-label="Add spotlight manually">
-          <img src="/icons/icon-pushpin-fill.svg" alt="Add pin" />
+        <button class="center-spotlight-btn" onclick={centerSpotlightOnMap} aria-label="Center spotlight on map">
+          <img src="/icons/icon-center.svg" alt="" />
         </button>
       </div>
     </div>
@@ -332,8 +351,13 @@
       <div
         class="preview-map-container"
         style="border-color: {$insetConfig.borderColor}"
-        bind:this={previewContainer}
-      ></div>
+      >
+        <div bind:this={previewContainer} class="preview-map-inner"></div>
+        <div
+          class="viewport-indicator"
+          style="width: {INSET_SIZE_MAP[$insetConfig.size]}px; height: {INSET_SIZE_MAP[$insetConfig.size]}px;"
+        ></div>
+      </div>
     </div>
 
     <div class="section">
@@ -361,7 +385,7 @@
       {/if}
     </div>
 
-    <div class="section row-section">
+    <div class="section row-section no-border">
       <span class="section-label">Position</span>
       <div class="position-row">
         {#each positions as pos}
@@ -377,8 +401,8 @@
       </div>
     </div>
 
-    <div class="section row-section">
-      <span class="section-label">Inset map size</span>
+    <div class="section row-section no-border">
+      <span class="section-label">Size</span>
       <div class="slider-wrapper">
         <input
           type="range"
@@ -403,7 +427,7 @@
     </div>
 
     <div class="section">
-      <span class="section-label with-underline">Border colour</span>
+      <span class="section-label">Border colour</span>
       <div class="color-picker">
         {#each COLOR_PALETTE as color}
           <button
@@ -418,23 +442,7 @@
       </div>
     </div>
 
-    <div class="section">
-      <span class="section-label with-underline">Spotlight colour</span>
-      <div class="color-picker">
-        {#each COLOR_PALETTE as color}
-          <button
-            class="color-btn"
-            class:active={$insetConfig.spotlight.color === color}
-            class:white={color === '#FFFFFF'}
-            style="background-color: {color}"
-            onclick={() => setSpotlightColor(color)}
-            aria-label="Select {color} spotlight color"
-          ></button>
-        {/each}
-      </div>
-    </div>
-
-    <div class="section row-section">
+    <div class="section row-section no-border spotlight-section">
       <span class="section-label">Spotlight size</span>
       <div class="slider-wrapper">
         <input
@@ -457,6 +465,47 @@
         {/if}
       </div>
     </div>
+
+    <div class="section row-section no-border">
+      <span class="section-label">Spotlight opacity</span>
+      <div class="slider-wrapper">
+        <input
+          type="range"
+          class="slider"
+          min="0"
+          max="100"
+          step="10"
+          value={$insetConfig.spotlight.opacity}
+          oninput={(e) => {
+            isDraggingSpotlightOpacity = true;
+            const val = parseInt((e.target as HTMLInputElement).value);
+            setSpotlightOpacity(val);
+          }}
+          onchange={() => isDraggingSpotlightOpacity = false}
+          onmouseup={() => isDraggingSpotlightOpacity = false}
+          ontouchend={() => isDraggingSpotlightOpacity = false}
+        />
+        {#if isDraggingSpotlightOpacity}
+          <span class="slider-feedback">{$insetConfig.spotlight.opacity}%</span>
+        {/if}
+      </div>
+    </div>
+
+    <div class="section">
+      <span class="section-label">Spotlight colour</span>
+      <div class="color-picker">
+        {#each COLOR_PALETTE as color}
+          <button
+            class="color-btn"
+            class:active={$insetConfig.spotlight.color === color}
+            class:white={color === '#FFFFFF'}
+            style="background-color: {color}"
+            onclick={() => setSpotlightColor(color)}
+            aria-label="Select {color} spotlight color"
+          ></button>
+        {/each}
+      </div>
+    </div>
   </div>
 {/if}
 
@@ -465,7 +514,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 8px 14px;
     background: var(--color-white);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
@@ -488,16 +537,16 @@
   }
 
   .toggle-label {
-    font-size: 16px;
+    font-size: 14px;
     color: var(--color-text-primary);
   }
 
   .toggle-switch {
-    width: 48px;
-    height: 28px;
+    width: 40px;
+    height: 22px;
     background: var(--color-text-primary);
     border: none;
-    border-radius: 14px;
+    border-radius: 11px;
     position: relative;
     cursor: pointer;
     transition: background 0.2s;
@@ -509,17 +558,17 @@
 
   .toggle-thumb {
     position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 22px;
-    height: 22px;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
     background: var(--color-white);
     border-radius: 50%;
     transition: transform 0.2s;
   }
 
   .toggle-switch.active .toggle-thumb {
-    transform: translateX(20px);
+    transform: translateX(18px);
   }
 
   .inset-card {
@@ -552,16 +601,20 @@
     border-bottom: 1px solid var(--color-bg-panel);
   }
 
+  .row-section.no-border {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .row-section.spotlight-section {
+    margin-top: 8px;
+  }
+
   .section-label {
     font-size: 14px;
     color: var(--color-text-primary);
     display: block;
     margin-bottom: 12px;
-  }
-
-  .section-label.with-underline {
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--color-bg-panel);
   }
 
   .row-section .section-label {
@@ -618,24 +671,7 @@
     filter: brightness(0) saturate(100%) invert(50%);
   }
 
-  .pushpin-btn {
-    width: 48px;
-    height: 48px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    flex-shrink: 0;
-  }
 
-  .pushpin-btn img {
-    width: 28px;
-    height: 28px;
-    filter: brightness(0) saturate(100%) invert(50%);
-  }
 
   .search-results {
     position: absolute;
@@ -671,13 +707,50 @@
     background: var(--color-bg-panel);
   }
 
+  .center-spotlight-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .center-spotlight-btn img {
+    width: 24px;
+    height: 24px;
+    filter: brightness(0) saturate(100%) invert(50%);
+  }
+
   .preview-map-container {
+    position: relative;
     width: 240px;
     height: 240px;
     margin: 0 auto;
     border: 4px solid var(--color-brand);
     border-radius: var(--radius-md);
     background: var(--color-bg-panel);
+    overflow: hidden;
+  }
+
+  .preview-map-inner {
+    width: 100%;
+    height: 100%;
+  }
+
+  .viewport-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px dashed rgba(0, 0, 0, 0.5);
+    border-radius: 6px;
+    pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
   }
 
   .dropdown-header {

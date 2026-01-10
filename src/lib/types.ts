@@ -25,6 +25,7 @@ export interface InsetConfig {
     lng: number;
     color: string;
     size: 1 | 2 | 3 | 4 | 5;
+    opacity: number; // 0-100
   };
 }
 
