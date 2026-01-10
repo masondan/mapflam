@@ -6,18 +6,18 @@
   "scope": "/",
   "display": "standalone",
   "theme_color": "#5422b0",
-  "background_color": "#ffffff",
+  "background_color": "#5422b0",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icons/logo-mapflam-favicon.png",
-      "sizes": "192x192",
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "/icons/logo-mapflam-maskable.png",
-      "sizes": "192x192",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
