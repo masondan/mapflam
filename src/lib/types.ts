@@ -143,9 +143,9 @@ export const BASE_MAP_TILES: Record<BaseMap, { url: string; attribution: string 
       '© OpenStreetMap contributors, © CartoDB',
   },
   toner: {
-    url: 'https://tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png',
+    url: 'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}{r}.png',
     attribution:
-      '© OpenStreetMap contributors, © Stamen Design',
+      '© Stadia Maps © Stamen Design © OpenMapTiles © OpenStreetMap contributors',
   },
 };
 

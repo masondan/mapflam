@@ -62,12 +62,14 @@
     insetConfig.update((c) => {
       if (!c.enabled) {
         editingPinId.set(null);
+        isExpanded = true;
         return {
           ...c,
           enabled: true,
           spotlight: { ...c.spotlight, enabled: true, lat: c.center.lat, lng: c.center.lng },
         };
       }
+      isExpanded = false;
       return { ...c, enabled: false };
     });
   }
