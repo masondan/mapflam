@@ -4,7 +4,7 @@ export type IconType = 'pin1' | 'pin2' | 'pin3' | 'pin4' | 'pin5' | 'pin6';
 export type PinSize = 1 | 2 | 3 | 4 | 5; // 1=small, 5=large, 3=default
 export type LabelSize = 'small' | 'medium' | 'large';
 export type MapFormat = 'square' | '16:9' | '9:16';
-export type BaseMap = 'positron' | 'voyager' | 'osm-standard';
+export type BaseMap = 'positron' | 'voyager' | 'osm-standard' | 'positron-nolabels' | 'esri-satellite' | 'opentopomap';
 
 // Inset map types (Phase 2)
 export type InsetPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -143,6 +143,18 @@ export const BASE_MAP_TILES: Record<BaseMap, { url: string; attribution: string 
   'osm-standard': {
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors',
+  },
+  'positron-nolabels': {
+    url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    attribution: '© OpenStreetMap contributors, © CartoDB',
+  },
+  'esri-satellite': {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, DigitalGlobe, Earthstar Geographics',
+  },
+  'opentopomap': {
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors, © OpenTopoMap',
   },
 };
 

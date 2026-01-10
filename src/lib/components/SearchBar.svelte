@@ -80,6 +80,12 @@
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(triggerSearch, 300);
   }
+
+  // Sync local query with store when cleared externally (e.g., when pin is dragged)
+  $: if ($searchQuery === '' && query !== '') {
+    query = '';
+    if (inputElement) inputElement.value = '';
+  }
 </script>
 
 <div class="search-bar">

@@ -2,7 +2,7 @@
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { onMount, onDestroy } from 'svelte';
-  import { leafletMap, mapCenter, mapZoom, markers, selectedBaseMap, selectedFormat, insetConfig } from '../stores';
+  import { leafletMap, mapCenter, mapZoom, markers, selectedBaseMap, selectedFormat, insetConfig, searchQuery, searchResults } from '../stores';
   import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES, ICON_SVG_PATHS, INSET_MAP_TILES, INSET_SIZE_MAP } from '../types';
   import type { Marker, MapFormat, BaseMap, InsetConfig } from '../types';
   import TwoFingerOverlay from './TwoFingerOverlay.svelte';
@@ -329,6 +329,9 @@
         }
         return markerList;
       });
+      // Clear search since pin was moved manually
+      searchQuery.set('');
+      searchResults.set([]);
     });
 
     leafletMarker.on('click', () => {

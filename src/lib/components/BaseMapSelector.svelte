@@ -18,6 +18,21 @@
       value: 'osm-standard',
       thumbnailUrl: 'https://tile.openstreetmap.org/2/2/0.png'
     },
+    { 
+      label: 'Positron No Labels', 
+      value: 'positron-nolabels',
+      thumbnailUrl: 'https://a.basemaps.cartocdn.com/light_nolabels/2/2/0.png'
+    },
+    { 
+      label: 'Satellite', 
+      value: 'esri-satellite',
+      thumbnailUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/2/1/2'
+    },
+    { 
+      label: 'OpenTopoMap', 
+      value: 'opentopomap',
+      thumbnailUrl: 'https://a.tile.opentopomap.org/2/2/0.png'
+    },
   ];
 
   let isOpen = false;
@@ -137,12 +152,12 @@
   }
 
   .thumbnail-grid {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
   }
 
   .thumbnail-card {
-    flex: 1;
     display: flex;
     flex-direction: column;
     border: 1px solid #999999;

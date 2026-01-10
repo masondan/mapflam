@@ -858,16 +858,16 @@
     background-repeat: no-repeat;
   }
 
-  .thumb-preview[data-style='positron-nolabels'] {
-    background-image: url('https://a.basemaps.cartocdn.com/light_nolabels/2/2/0.png');
-  }
-
-  .thumb-preview[data-style='watercolor'] {
-    background-image: url('https://tiles.stadiamaps.com/tiles/stamen_watercolor/2/2/0.jpg');
+  .thumb-preview[data-style='positron'] {
+    background-image: url('https://a.basemaps.cartocdn.com/light_all/2/2/0.png');
   }
 
   .thumb-preview[data-style='voyager'] {
-    background-image: url('https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/2/2/0.png');
+    background-image: url('https://a.basemaps.cartocdn.com/rastertiles/voyager/2/2/0.png');
+  }
+
+  .thumb-preview[data-style='osm-standard'] {
+    background-image: url('https://tile.openstreetmap.org/2/2/0.png');
   }
 
   .position-row {

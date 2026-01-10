@@ -1,7 +1,7 @@
 <script lang="ts">
   import { v4 as uuidv4 } from 'uuid';
   import { get } from 'svelte/store';
-  import { markers, editingPinId, mapCenter, leafletMap, insetConfig } from '../stores';
+  import { markers, editingPinId, mapCenter, leafletMap, insetConfig, searchQuery, searchResults } from '../stores';
   import { COLOR_PALETTE, ICON_FILES } from '../types';
   import type { Marker, IconType, PinSize, LabelSize } from '../types';
   import SearchBar from './SearchBar.svelte';
@@ -65,13 +65,23 @@
     }
   }
 
-  function centerMapOnPin(pinId: string) {
+  function centerPinOnMap(pinId: string) {
     const map = get(leafletMap);
-    const pin = markerList.find((m) => m.id === pinId);
-    if (pin && map) {
-      map.setView([pin.lat, pin.lng], map.getZoom());
-      mapCenter.set({ lat: pin.lat, lng: pin.lng });
-    }
+    if (!map) return;
+    
+    const center = map.getCenter();
+    markers.update((list) => {
+      const pin = list.find((m) => m.id === pinId);
+      if (pin) {
+        pin.lat = center.lat;
+        pin.lng = center.lng;
+      }
+      return list;
+    });
+    
+    // Clear search since pin was moved manually
+    searchQuery.set('');
+    searchResults.set([]);
   }
 
   function handleSearch(
@@ -291,7 +301,7 @@
               />
             </button>
           </div>
-          <button class="center-btn" on:click={() => centerMapOnPin(pin.id)} aria-label="Center map on this pin">
+          <button class="center-btn" on:click={() => centerPinOnMap(pin.id)} aria-label="Center pin on map view">
             <img src="/icons/icon-center.svg" alt="" />
           </button>
         </div>
