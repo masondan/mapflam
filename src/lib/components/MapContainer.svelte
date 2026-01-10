@@ -3,7 +3,7 @@
   import 'leaflet/dist/leaflet.css';
   import { onMount, onDestroy } from 'svelte';
   import { leafletMap, mapCenter, mapZoom, markers, selectedBaseMap, selectedFormat, insetConfig } from '../stores';
-  import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES, ICON_FILES, INSET_MAP_TILES, INSET_SIZE_MAP } from '../types';
+  import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES, ICON_SVG_PATHS, INSET_MAP_TILES, INSET_SIZE_MAP } from '../types';
   import type { Marker, MapFormat, BaseMap, InsetConfig } from '../types';
   import TwoFingerOverlay from './TwoFingerOverlay.svelte';
 
@@ -340,23 +340,13 @@
   function createMarkerHTML(marker: Marker): string {
     const scale = SIZE_MAP[marker.size] || 1;
     const opacity = marker.opacity / 100;
-    const iconFileName = ICON_FILES[marker.icon] || 'icon-pin1-fill.svg';
+    const svgPath = ICON_SVG_PATHS[marker.icon] || ICON_SVG_PATHS.pin1;
+    const size = 24 * scale;
 
     const iconSvg = `
-      <div style="
-        width: ${24 * scale}px;
-        height: ${24 * scale}px;
-        opacity: ${opacity};
-        background-color: ${marker.color};
-        -webkit-mask-image: url('/icons/${iconFileName}');
-        mask-image: url('/icons/${iconFileName}');
-        -webkit-mask-size: contain;
-        mask-size: contain;
-        -webkit-mask-repeat: no-repeat;
-        mask-repeat: no-repeat;
-        -webkit-mask-position: center;
-        mask-position: center;
-      "></div>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" style="opacity: ${opacity};">
+        <path d="${svgPath}" fill="${marker.color}"/>
+      </svg>
     `;
 
     const labelHTML = marker.label && marker.label.text

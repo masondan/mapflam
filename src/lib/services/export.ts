@@ -5,7 +5,7 @@ import type { MapFormat } from '../types';
 
 /**
  * Export map container as PNG at format-dependent size
- * Uses html2canvas to render DOM to PNG with 2x scale
+ * Captures the container at its current size and scales to target dimensions
  */
 export async function exportMap(
   containerSelector: string,
@@ -13,26 +13,54 @@ export async function exportMap(
   filename?: string
 ): Promise<void> {
   try {
-    const container = document.querySelector(containerSelector);
+    const container = document.querySelector(containerSelector) as HTMLElement;
     if (!container) {
       throw new Error(`Container not found: ${containerSelector}`);
     }
 
     const size = EXPORT_SIZES[format];
+    const containerRect = container.getBoundingClientRect();
 
-    const canvas = await html2canvas(container as HTMLElement, {
-      width: size.width,
-      height: size.height,
-      scale: 2, // 2x for clarity
+    // Calculate scale factor to make container fill target size
+    const scaleX = size.width / containerRect.width;
+    const scaleY = size.height / containerRect.height;
+    const scale = Math.max(scaleX, scaleY);
+
+    // Capture at high resolution using scale
+    const capturedCanvas = await html2canvas(container, {
+      scale: scale,
       backgroundColor: '#ffffff',
       logging: false,
       useCORS: true,
       allowTaint: true,
     });
 
+    // Create final canvas at exact export dimensions
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = size.width;
+    finalCanvas.height = size.height;
+    const ctx = finalCanvas.getContext('2d');
+    
+    if (!ctx) {
+      throw new Error('Could not get canvas context');
+    }
+
+    // Fill with white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size.width, size.height);
+
+    // Calculate centering offset if aspect ratios differ
+    const scaledWidth = containerRect.width * scale;
+    const scaledHeight = containerRect.height * scale;
+    const offsetX = (size.width - scaledWidth) / 2;
+    const offsetY = (size.height - scaledHeight) / 2;
+
+    // Draw captured canvas centered in final canvas
+    ctx.drawImage(capturedCanvas, offsetX, offsetY, scaledWidth, scaledHeight);
+
     // Convert to PNG and download
     const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
+    link.href = finalCanvas.toDataURL('image/png');
     link.download =
       filename || `mapflam_${format}_${new Date().toISOString().split('T')[0]}.png`;
     link.click();
