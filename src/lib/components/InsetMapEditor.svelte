@@ -11,9 +11,12 @@
     type InsetSize,
     type InsetBaseMap,
   } from '../types';
+  import TwoFingerOverlay from './TwoFingerOverlay.svelte';
 
   let previewContainer: HTMLDivElement;
   let previewMap: L.Map | null = null;
+  let showTwoFingerHint = false;
+  let hintTimeout: ReturnType<typeof setTimeout>;
   let tileLayer: L.TileLayer | null = null;
   let spotlightMarker: L.Marker | null = null;
   let searchInput = '';
@@ -233,10 +236,33 @@
       zoom: $insetConfig.zoom,
       zoomControl: false,
       attributionControl: false,
-      dragging: true,
+      dragging: !L.Browser.mobile,
       scrollWheelZoom: true,
       touchZoom: true,
     });
+
+    if (L.Browser.mobile) {
+      let touchCount = 0;
+      
+      previewContainer.addEventListener('touchstart', (e) => {
+        touchCount = e.touches.length;
+        if (touchCount === 1) {
+          clearTimeout(hintTimeout);
+          showTwoFingerHint = true;
+          hintTimeout = setTimeout(() => {
+            showTwoFingerHint = false;
+          }, 1500);
+        } else if (touchCount >= 2) {
+          showTwoFingerHint = false;
+          previewMap?.dragging.enable();
+        }
+      }, { passive: true });
+      
+      previewContainer.addEventListener('touchend', () => {
+        touchCount = 0;
+        previewMap?.dragging.disable();
+      }, { passive: true });
+    }
 
     updateTileLayer($insetConfig.baseMap);
 
@@ -357,6 +383,7 @@
           class="viewport-indicator"
           style="width: {INSET_SIZE_MAP[$insetConfig.size]}px; height: {INSET_SIZE_MAP[$insetConfig.size]}px;"
         ></div>
+        <TwoFingerOverlay visible={showTwoFingerHint} />
       </div>
     </div>
 

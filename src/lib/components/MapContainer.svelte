@@ -5,10 +5,13 @@
   import { leafletMap, mapCenter, mapZoom, markers, selectedBaseMap, selectedFormat, insetConfig } from '../stores';
   import { BASE_MAP_TILES, SIZE_MAP, LABEL_SIZES, ICON_FILES, INSET_MAP_TILES, INSET_SIZE_MAP } from '../types';
   import type { Marker, MapFormat, BaseMap, InsetConfig } from '../types';
+  import TwoFingerOverlay from './TwoFingerOverlay.svelte';
 
   let mapContainer: HTMLDivElement;
   let insetContainer: HTMLDivElement;
   let map: L.Map | null = null;
+  let showTwoFingerHint = false;
+  let hintTimeout: ReturnType<typeof setTimeout>;
   let insetMap: L.Map | null = null;
   let insetTileLayer: L.TileLayer | null = null;
   let insetSpotlightMarker: L.Marker | null = null;
@@ -50,7 +53,33 @@
     map = L.map(mapContainer, {
       zoomControl: false,
       attributionControl: true,
+      dragging: !L.Browser.mobile,
+      touchZoom: true,
+      scrollWheelZoom: true,
     }).setView([initialCenter.lat, initialCenter.lng], initialZoom);
+
+    if (L.Browser.mobile) {
+      let touchCount = 0;
+      
+      mapContainer.addEventListener('touchstart', (e) => {
+        touchCount = e.touches.length;
+        if (touchCount === 1) {
+          clearTimeout(hintTimeout);
+          showTwoFingerHint = true;
+          hintTimeout = setTimeout(() => {
+            showTwoFingerHint = false;
+          }, 1500);
+        } else if (touchCount >= 2) {
+          showTwoFingerHint = false;
+          map?.dragging.enable();
+        }
+      }, { passive: true });
+      
+      mapContainer.addEventListener('touchend', () => {
+        touchCount = 0;
+        map?.dragging.disable();
+      }, { passive: true });
+    }
 
     let initialBaseMap: BaseMap = 'positron';
     const unsubBase = selectedBaseMap.subscribe((b) => {
@@ -347,6 +376,7 @@
     bind:this={mapContainer}
     class="map-wrapper"
   ></div>
+  <TwoFingerOverlay visible={showTwoFingerHint} />
   
   {#if currentInsetConfig?.enabled}
     <div
