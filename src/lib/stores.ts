@@ -12,7 +12,7 @@ export const markers = writable<Marker[]>([]);
 
 // UI state
 export const selectedFormat = writable<MapFormat>('square');
-export const selectedBaseMap = writable<BaseMap>('positron');
+export const selectedBaseMap = writable<BaseMap>('voyager');
 export const activeTab = writable<'create' | 'saved'>('create');
 export const editingPinId = writable<string | null>(null);
 

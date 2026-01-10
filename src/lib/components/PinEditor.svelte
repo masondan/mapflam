@@ -65,23 +65,13 @@
     }
   }
 
-  function centerPinOnMap(pinId: string) {
+  function centerMapOnPin(pinId: string) {
     const map = get(leafletMap);
-    if (!map) return;
-    
-    const center = map.getCenter();
-    markers.update((list) => {
-      const pin = list.find((m) => m.id === pinId);
-      if (pin) {
-        pin.lat = center.lat;
-        pin.lng = center.lng;
-      }
-      return list;
-    });
-    
-    // Clear search since pin was moved manually
-    searchQuery.set('');
-    searchResults.set([]);
+    const pin = markerList.find((m) => m.id === pinId);
+    if (pin && map) {
+      map.setView([pin.lat, pin.lng], map.getZoom());
+      mapCenter.set({ lat: pin.lat, lng: pin.lng });
+    }
   }
 
   function handleSearch(
@@ -301,7 +291,7 @@
               />
             </button>
           </div>
-          <button class="center-btn" on:click={() => centerPinOnMap(pin.id)} aria-label="Center pin on map view">
+          <button class="center-btn" on:click={() => centerMapOnPin(pin.id)} aria-label="Center map on this pin">
             <img src="/icons/icon-center.svg" alt="" />
           </button>
         </div>
