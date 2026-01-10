@@ -63,6 +63,14 @@
       
       mapContainer.addEventListener('touchstart', (e) => {
         touchCount = e.touches.length;
+        
+        const target = e.target as HTMLElement;
+        const isMarker = target.closest('.custom-marker') !== null;
+        
+        if (isMarker) {
+          return;
+        }
+        
         if (touchCount === 1) {
           clearTimeout(hintTimeout);
           showTwoFingerHint = true;
