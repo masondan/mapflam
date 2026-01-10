@@ -253,6 +253,7 @@
       insetTileLayer = L.tileLayer(tiles.url, {
         attribution: '',
         maxZoom: 19,
+        crossOrigin: 'anonymous',
       }).addTo(insetMap);
     }
   }
@@ -270,6 +271,7 @@
     L.tileLayer(tileConfig.url, {
       attribution: tileConfig.attribution,
       maxZoom: 19,
+      crossOrigin: 'anonymous',
     }).addTo(map);
   }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import L from 'leaflet';
   import { insetConfig, insetLeafletMap, editingPinId } from '../stores';
   import { searchLocations } from '../services/nominatim';
@@ -29,6 +29,17 @@
   let isDraggingSize = false;
   let isDraggingSpotlightSize = false;
   let isDraggingSpotlightOpacity = false;
+
+  // Listen for close-inset-editor event from PinEditor
+  onMount(() => {
+    const handleCloseEditor = () => {
+      isExpanded = false;
+    };
+    window.addEventListener('close-inset-editor', handleCloseEditor);
+    return () => {
+      window.removeEventListener('close-inset-editor', handleCloseEditor);
+    };
+  });
 
   const positions: { id: InsetPosition; icon: string }[] = [
     { id: 'top-right', icon: '/icons/icon-right-up-fill.svg' },
@@ -118,6 +129,7 @@
     const tiles = INSET_MAP_TILES[baseMap];
     tileLayer = L.tileLayer(tiles.url, {
       attribution: '',
+      crossOrigin: 'anonymous',
     }).addTo(previewMap);
   }
 

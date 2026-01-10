@@ -26,13 +26,18 @@ export async function exportMap(
     const scaleY = size.height / containerRect.height;
     const scale = Math.max(scaleX, scaleY);
 
+    // Wait for tiles to load before capturing
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // Capture at high resolution using scale
     const capturedCanvas = await html2canvas(container, {
       scale: scale,
       backgroundColor: '#ffffff',
-      logging: false,
+      logging: true,
       useCORS: true,
       allowTaint: true,
+      foreignObjectRendering: false,
+      imageTimeout: 5000,
     });
 
     // Create final canvas at exact export dimensions

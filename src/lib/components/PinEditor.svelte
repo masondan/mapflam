@@ -26,7 +26,8 @@
     let center = { lat: 6.5244, lng: 3.3792 };
     mapCenter.subscribe((c) => (center = c))();
 
-    insetConfig.update((c) => ({ ...c, enabled: false }));
+    // Close inset editor panel (dispatch event) but keep inset map enabled if it was on
+    window.dispatchEvent(new CustomEvent('close-inset-editor'));
 
     if (pin) {
       editingPinId.set(pin.id);
@@ -58,7 +59,8 @@
         editingPinId.set(null);
       } else {
         editingPinId.set(pinId);
-        insetConfig.update((c) => ({ ...c, enabled: false }));
+        // Close inset editor panel but keep inset map enabled if it was on
+        window.dispatchEvent(new CustomEvent('close-inset-editor'));
       }
     }
   }
