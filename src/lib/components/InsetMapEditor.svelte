@@ -48,7 +48,7 @@
     { id: 'bottom-left', icon: '/icons/icon-left-down-fill.svg' },
   ];
 
-  const baseMapOptions: InsetBaseMap[] = ['positron-nolabels', 'watercolor', 'voyager'];
+  const baseMapOptions: InsetBaseMap[] = ['positron', 'voyager', 'osm-standard'];
 
   const SPOTLIGHT_SIZE_MAP: Record<1 | 2 | 3 | 4 | 5, number> = {
     1: 30,

@@ -22,7 +22,7 @@ export const insetConfig = writable<InsetConfig>({
   position: 'top-right',
   size: 'medium',
   borderColor: '#5422b0',
-  baseMap: 'positron-nolabels',
+  baseMap: 'positron',
   center: { lat: 6.5244, lng: 3.3792 },
   zoom: 5,
   spotlight: {

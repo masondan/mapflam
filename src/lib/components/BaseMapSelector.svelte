@@ -9,14 +9,14 @@
       thumbnailUrl: 'https://a.basemaps.cartocdn.com/light_all/2/2/0.png'
     },
     { 
-      label: 'No Labels', 
-      value: 'positron-nolabels',
-      thumbnailUrl: 'https://a.basemaps.cartocdn.com/light_nolabels/2/2/0.png'
+      label: 'Voyager', 
+      value: 'voyager',
+      thumbnailUrl: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/2/2/0.png'
     },
     { 
-      label: 'Toner', 
-      value: 'toner',
-      thumbnailUrl: 'https://tile.openstreetmap.de/tiles/osmde/2/2/0.png'
+      label: 'OSM', 
+      value: 'osm-standard',
+      thumbnailUrl: 'https://tile.openstreetmap.org/2/2/0.png'
     },
   ];
 

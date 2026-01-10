@@ -4,12 +4,12 @@ export type IconType = 'pin1' | 'pin2' | 'pin3' | 'pin4' | 'pin5' | 'pin6';
 export type PinSize = 1 | 2 | 3 | 4 | 5; // 1=small, 5=large, 3=default
 export type LabelSize = 'small' | 'medium' | 'large';
 export type MapFormat = 'square' | '16:9' | '9:16';
-export type BaseMap = 'positron' | 'positron-nolabels' | 'toner';
+export type BaseMap = 'positron' | 'voyager' | 'osm-standard';
 
 // Inset map types (Phase 2)
 export type InsetPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 export type InsetSize = 'small' | 'medium' | 'large';
-export type InsetBaseMap = 'positron-nolabels' | 'watercolor' | 'voyager';
+export type InsetBaseMap = 'positron' | 'voyager' | 'osm-standard';
 
 export interface InsetConfig {
   enabled: boolean;
@@ -134,37 +134,34 @@ export const LABEL_SIZES: Record<LabelSize, string> = {
 export const BASE_MAP_TILES: Record<BaseMap, { url: string; attribution: string }> = {
   positron: {
     url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution:
-      '© OpenStreetMap contributors, © CartoDB',
+    attribution: '© OpenStreetMap contributors, © CartoDB',
   },
-  'positron-nolabels': {
-    url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-    attribution:
-      '© OpenStreetMap contributors, © CartoDB',
+  voyager: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '© OpenStreetMap contributors, © CartoDB',
   },
-  toner: {
-    url: 'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}{r}.png',
-    attribution:
-      '© Stadia Maps © Stamen Design © OpenMapTiles © OpenStreetMap contributors',
+  'osm-standard': {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors',
   },
 };
 
 // Inset map tile providers (simpler styles)
 export const INSET_MAP_TILES: Record<InsetBaseMap, { url: string; attribution: string; name: string }> = {
-  'positron-nolabels': {
-    url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+  positron: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     attribution: '© OpenStreetMap contributors, © CartoDB',
-    name: 'Light',
-  },
-  watercolor: {
-    url: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
-    attribution: '© OpenStreetMap contributors, © Stamen Design',
-    name: 'Watercolor',
+    name: 'Positron',
   },
   voyager: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
     attribution: '© OpenStreetMap contributors, © CartoDB',
     name: 'Voyager',
+  },
+  'osm-standard': {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors',
+    name: 'OSM Standard',
   },
 };
 
