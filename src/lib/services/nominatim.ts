@@ -1,12 +1,15 @@
 import type { NominatimResult } from '../types';
+import { searchMapbox } from './mapbox';
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
 const CACHE = new Map<string, { results: NominatimResult[]; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Search for locations via Nominatim API
- * Results are cached in sessionStorage for 5 minutes
+ * Search for locations via Nominatim API with MapBox fallback
+ * - Primary: Nominatim (free, open-source)
+ * - Fallback: MapBox (when Nominatim returns zero results)
+ * Results are cached for 5 minutes
  * Rate-limited by caller (debounce to 300ms)
  */
 export async function searchLocations(query: string): Promise<NominatimResult[]> {
@@ -19,6 +22,7 @@ export async function searchLocations(query: string): Promise<NominatimResult[]>
   }
 
   try {
+    // Try Nominatim first
     const params = new URLSearchParams({
       q: query,
       format: 'json',
@@ -34,14 +38,32 @@ export async function searchLocations(query: string): Promise<NominatimResult[]>
       throw new Error(`Nominatim API error: ${response.status}`);
     }
 
-    const results: NominatimResult[] = await response.json();
+    let results: NominatimResult[] = await response.json();
 
-    // Cache results
+    // Fallback to MapBox if Nominatim returns no results
+    if (results.length === 0) {
+      console.log('Nominatim returned no results, trying MapBox fallback...');
+      results = await searchMapbox(query);
+    }
+
+    // Cache results (from either source)
     CACHE.set(query, { results, timestamp: Date.now() });
 
     return results;
   } catch (error) {
     console.error('Geocoding error:', error);
+    
+    // On Nominatim failure, try MapBox as backup
+    try {
+      const fallbackResults = await searchMapbox(query);
+      if (fallbackResults.length > 0) {
+        CACHE.set(query, { results: fallbackResults, timestamp: Date.now() });
+        return fallbackResults;
+      }
+    } catch (fallbackError) {
+      console.error('MapBox fallback also failed:', fallbackError);
+    }
+    
     return [];
   }
 }
