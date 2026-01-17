@@ -181,11 +181,13 @@
 
   function centerSpotlightOnMap() {
     if (!previewMap) return;
-    const center = previewMap.getCenter();
+    const config = $insetConfig;
+    if (!config.spotlight.enabled) return;
     
+    previewMap.setView([config.spotlight.lat, config.spotlight.lng], previewMap.getZoom());
     insetConfig.update((c) => ({
       ...c,
-      spotlight: { ...c.spotlight, lat: center.lat, lng: center.lng },
+      center: { lat: config.spotlight.lat, lng: config.spotlight.lng },
     }));
   }
 
@@ -777,9 +779,8 @@
 
   .preview-map-container {
     position: relative;
-    width: 240px;
-    height: 240px;
-    margin: 0 auto;
+    width: 100%;
+    aspect-ratio: 1;
     border: 4px solid var(--color-brand);
     border-radius: var(--radius-md);
     background: var(--color-bg-panel);
