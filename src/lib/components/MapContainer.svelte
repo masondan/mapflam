@@ -42,13 +42,15 @@
     
     const unsubCenter = mapCenter.subscribe((c) => {
       initialCenter = c;
+      // Update map view when mapCenter changes (e.g., from geolocation)
+      if (map) {
+        map.setView([c.lat, c.lng], initialZoom, { animate: false });
+      }
     });
-    unsubCenter();
     
     const unsubZoom = mapZoom.subscribe((z) => {
       initialZoom = z;
     });
-    unsubZoom();
     
     map = L.map(mapContainer, {
       zoomControl: false,
@@ -135,6 +137,8 @@
     });
 
     return () => {
+      unsubCenter();
+      unsubZoom();
       unsubscribeMarkers();
       unsubscribeBaseMap();
       unsubscribeFormat();
