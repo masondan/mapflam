@@ -8,9 +8,11 @@
     selectedBaseMap,
     mapCenter,
     mapZoom,
+    insetConfig,
   } from './lib/stores';
   import { loadSavedMaps, saveMap, loadWorkingState, saveWorkingState, clearWorkingState, promoteWorkingStateToSavedMap } from './lib/services/persistence';
   import { exportMap, generateThumbnail } from './lib/services/export';
+  import { getUserLocation } from './lib/services/geolocation';
   import MapContainer from './lib/components/MapContainer.svelte';
   import RatioSelector from './lib/components/RatioSelector.svelte';
   import BaseMapSelector from './lib/components/BaseMapSelector.svelte';
@@ -84,8 +86,23 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     loadSavedMaps();
+
+    // Detect user's current location and update map center
+    const userLocation = await getUserLocation();
+    mapCenter.set(userLocation);
+
+    // Update inset map to show regional view of user's location
+    insetConfig.update((config) => ({
+      ...config,
+      center: userLocation,
+      spotlight: {
+        ...config.spotlight,
+        lat: userLocation.lat,
+        lng: userLocation.lng,
+      },
+    }));
 
     // On app launch, if there's unsaved work from last session, promote it to saved maps
     const workingState = loadWorkingState();
