@@ -29,6 +29,7 @@
   let isDraggingSize = false;
   let isDraggingSpotlightSize = false;
   let isDraggingSpotlightOpacity = false;
+  let previewResizeObserver: ResizeObserver | null = null;
 
   // Listen for close-inset-editor event from PinEditor
   onMount(() => {
@@ -57,6 +58,25 @@
     4: 75,
     5: 90,
   };
+
+  /**
+   * Push the full preview bounds to the store.
+   * The entire preview IS what the inset will show (scaled up).
+   */
+  function pushBoundsToStore() {
+    if (!previewMap) return;
+    const b = previewMap.getBounds();
+    const center = b.getCenter();
+    insetConfig.update((c) => ({
+      ...c,
+      center: { lat: center.lat, lng: center.lng },
+      zoom: previewMap!.getZoom(),
+      bounds: [
+        [b.getSouthWest().lat, b.getSouthWest().lng],
+        [b.getNorthEast().lat, b.getNorthEast().lng],
+      ],
+    }));
+  }
 
   function toggleEnabled() {
     insetConfig.update((c) => {
@@ -171,7 +191,7 @@
       spotlight: { ...c.spotlight, enabled: true, lat: newLat, lng: newLng },
     }));
     if (previewMap) {
-      previewMap.setView([newLat, newLng], $insetConfig.zoom);
+      previewMap.panTo([newLat, newLng]);
     }
     updateSpotlightMarker();
     searchInput = '';
@@ -249,12 +269,14 @@
 
     previewMap = L.map(previewContainer, {
       center: [$insetConfig.center.lat, $insetConfig.center.lng],
-      zoom: $insetConfig.zoom,
+      zoom: $insetConfig.zoom ?? 5,
       zoomControl: false,
       attributionControl: false,
       dragging: !L.Browser.mobile,
       scrollWheelZoom: true,
       touchZoom: true,
+      zoomSnap: 0,
+      zoomDelta: 0.5,
     });
 
     if (L.Browser.mobile) {
@@ -290,14 +312,34 @@
 
     updateTileLayer($insetConfig.baseMap);
 
+    requestAnimationFrame(() => {
+      if (previewMap) {
+        previewMap.invalidateSize();
+
+        // If we have stored bounds, restore them directly into the full preview
+        if ($insetConfig.bounds) {
+          previewMap.fitBounds(L.latLngBounds($insetConfig.bounds as L.LatLngBoundsLiteral), {
+            animate: false,
+          });
+        }
+
+        pushBoundsToStore();
+      }
+    });
+
+    if (previewResizeObserver) {
+      previewResizeObserver.disconnect();
+    }
+    previewResizeObserver = new ResizeObserver(() => {
+      if (previewMap) {
+        previewMap.invalidateSize();
+      }
+    });
+    previewResizeObserver.observe(previewContainer);
+
+    // On every pan/zoom, push the crop frame bounds to the store
     previewMap.on('moveend', () => {
-      if (!previewMap) return;
-      const center = previewMap.getCenter();
-      insetConfig.update((c) => ({
-        ...c,
-        center: { lat: center.lat, lng: center.lng },
-        zoom: previewMap!.getZoom(),
-      }));
+      pushBoundsToStore();
     });
 
     if ($insetConfig.spotlight.enabled) {
@@ -308,6 +350,10 @@
   }
 
   function destroyPreviewMap() {
+    if (previewResizeObserver) {
+      previewResizeObserver.disconnect();
+      previewResizeObserver = null;
+    }
     if (previewMap) {
       previewMap.remove();
       previewMap = null;
@@ -403,10 +449,6 @@
         style="border-color: {$insetConfig.borderColor}"
       >
         <div bind:this={previewContainer} class="preview-map-inner"></div>
-        <div
-          class="viewport-indicator"
-          style="width: {INSET_SIZE_MAP[$insetConfig.size]}px; height: {INSET_SIZE_MAP[$insetConfig.size]}px;"
-        ></div>
         <TwoFingerOverlay visible={showTwoFingerHint} />
       </div>
     </div>
@@ -784,17 +826,6 @@
   .preview-map-inner {
     width: 100%;
     height: 100%;
-  }
-
-  .viewport-indicator {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    border: 2px dashed rgba(0, 0, 0, 0.5);
-    border-radius: 6px;
-    pointer-events: none;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
   }
 
   .dropdown-header {

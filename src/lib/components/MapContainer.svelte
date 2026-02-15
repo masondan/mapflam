@@ -29,6 +29,18 @@
     5: 60,
   };
 
+  function applyBoundsToInset(config: InsetConfig) {
+    if (!insetMap) return;
+    if (config.bounds) {
+      const b = L.latLngBounds(config.bounds as L.LatLngBoundsLiteral);
+      const zoom = insetMap.getBoundsZoom(b, false, L.point(0, 0));
+      insetMap.setView(b.getCenter(), zoom, { animate: false });
+    } else {
+      // Fallback for legacy configs without bounds
+      insetMap.setView([config.center.lat, config.center.lng], config.zoom ?? 5, { animate: false });
+    }
+  }
+
   const unsubscribeFormat = selectedFormat.subscribe((f) => {
     currentFormat = f;
     if (map) {
@@ -156,23 +168,24 @@
 
     insetMap = L.map(insetContainer, {
       center: [currentInsetConfig.center.lat, currentInsetConfig.center.lng],
-      zoom: currentInsetConfig.zoom,
+      zoom: currentInsetConfig.zoom ?? 5,
       zoomControl: false,
       attributionControl: false,
       dragging: false,
       scrollWheelZoom: false,
       touchZoom: false,
       doubleClickZoom: false,
+      zoomSnap: 0,
     });
 
     previousInsetSize = currentInsetConfig.size;
     updateInsetTileLayer(currentInsetConfig.baseMap);
     updateInsetSpotlight(currentInsetConfig);
     
-    // Ensure tiles load properly after container is visible
     requestAnimationFrame(() => {
       if (insetMap) {
         insetMap.invalidateSize();
+        applyBoundsToInset(currentInsetConfig);
       }
     });
   }
@@ -189,17 +202,21 @@
   function updateInsetMap(config: InsetConfig) {
     if (!insetMap) return;
     
-    // Check if size changed and invalidate to resize the map
-    if (previousInsetSize !== null && previousInsetSize !== config.size) {
+    const sizeChanged = previousInsetSize !== null && previousInsetSize !== config.size;
+    previousInsetSize = config.size;
+
+    if (sizeChanged) {
+      // After resize, invalidate then re-apply bounds
       setTimeout(() => {
         if (insetMap) {
           insetMap.invalidateSize();
+          applyBoundsToInset(config);
         }
       }, 50);
+    } else {
+      applyBoundsToInset(config);
     }
-    previousInsetSize = config.size;
-    
-    insetMap.setView([config.center.lat, config.center.lng], config.zoom, { animate: false });
+
     updateInsetTileLayer(config.baseMap);
     updateInsetSpotlight(config);
   }
@@ -232,7 +249,12 @@
       return;
     }
 
-    const size = SPOTLIGHT_SIZE_MAP[config.spotlight.size];
+    // Scale spotlight proportionally: preview is ~300px, inset is 100-180px
+    const previewSize = 300; // approximate preview container width
+    const insetPx = INSET_SIZE_MAP[config.size];
+    const scaleFactor = insetPx / previewSize;
+    const baseSize = SPOTLIGHT_SIZE_MAP[config.spotlight.size];
+    const size = Math.max(8, Math.round(baseSize * scaleFactor));
     const icon = createSpotlightIcon(config.spotlight.color, size, config.spotlight.opacity);
 
     if (insetSpotlightMarker) {

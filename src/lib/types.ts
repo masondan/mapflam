@@ -19,6 +19,7 @@ export interface InsetConfig {
   baseMap: InsetBaseMap;
   center: { lat: number; lng: number };
   zoom: number;
+  bounds?: [[number, number], [number, number]]; // [[south, west], [north, east]]
   spotlight: {
     enabled: boolean;
     lat: number;
