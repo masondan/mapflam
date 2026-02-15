@@ -453,7 +453,7 @@
     </div>
 
     <div class="section row-section no-border">
-      <span class="section-label">Size</span>
+      <span class="section-label">Map size</span>
       <div class="slider-wrapper">
         <input
           type="range"
@@ -471,9 +471,6 @@
           onmouseup={() => isDraggingSize = false}
           ontouchend={() => isDraggingSize = false}
         />
-        {#if isDraggingSize}
-          <span class="slider-feedback">{getSizeIndex($insetConfig.size) + 1}</span>
-        {/if}
       </div>
     </div>
 
@@ -511,9 +508,6 @@
           onmouseup={() => isDraggingSpotlightSize = false}
           ontouchend={() => isDraggingSpotlightSize = false}
         />
-        {#if isDraggingSpotlightSize}
-          <span class="slider-feedback">{$insetConfig.spotlight.size}</span>
-        {/if}
       </div>
     </div>
 
