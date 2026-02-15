@@ -52,11 +52,11 @@
   const baseMapOptions: InsetBaseMap[] = ['positron', 'voyager', 'osm-standard'];
 
   const SPOTLIGHT_SIZE_MAP: Record<1 | 2 | 3 | 4 | 5, number> = {
-    1: 30,
-    2: 45,
-    3: 60,
-    4: 75,
-    5: 90,
+    1: 45,
+    2: 60,
+    3: 75,
+    4: 90,
+    5: 105,
   };
 
   /**
@@ -218,7 +218,7 @@
       html: `<div style="
         width: ${size}px;
         height: ${size}px;
-        border: 3px solid ${color};
+        border: 2px solid ${color};
         border-radius: 50%;
         background: transparent;
         box-sizing: border-box;

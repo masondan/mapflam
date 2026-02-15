@@ -22,11 +22,11 @@
   let previousInsetSize: string | null = null;
 
   const SPOTLIGHT_SIZE_MAP: Record<1 | 2 | 3 | 4 | 5, number> = {
-    1: 20,
-    2: 30,
-    3: 40,
-    4: 50,
-    5: 60,
+    1: 30,
+    2: 40,
+    3: 50,
+    4: 60,
+    5: 70,
   };
 
   function applyBoundsToInset(config: InsetConfig) {
@@ -226,7 +226,7 @@
       html: `<div style="
         width: ${size}px;
         height: ${size}px;
-        border: 3px solid ${color};
+        border: 2px solid ${color};
         border-radius: 50%;
         background: transparent;
         box-sizing: border-box;
