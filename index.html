@@ -1,21 +1,53 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Character Encoding & Viewport -->
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- Page Title & Meta Description -->
+    <title>MapFlam</title>
+    <meta name="description" content="MapFlam is a mobile-first web app for making simple maps and locators. Designed for journalists and content creators." />
+
+    <!-- Theme & Status Bar -->
+    <meta name="theme-color" content="#5422b0" />
+    <meta name="msapplication-TileColor" content="#5422b0" />
+
+    <!-- Favicon & Apple Touch Icons -->
     <link rel="icon" href="/icons/logo-mapflam-favicon.png" type="image/png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#5422b0" />
-    <meta name="description" content="MapFlam - Build locator maps for journalists and content creators" />
-    <title>MapFlam</title>
+
+    <!-- Open Graph (Social Sharing - Facebook, LinkedIn, WhatsApp) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://mapflam.pages.dev/" />
+    <meta property="og:title" content="MapFlam" />
+    <meta property="og:description" content="MapFlam is a mobile-first web app for making simple maps and locators. Designed for journalists and content creators." />
+    <meta property="og:image" content="https://mapflam.pages.dev/icons/logo-mapflam-share.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="600" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:site_name" content="MapFlam" />
+
+    <!-- Twitter Card (Social Sharing - Twitter/X) -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MapFlam" />
+    <meta name="twitter:description" content="MapFlam is a mobile-first web app for making simple maps and locators. Designed for journalists and content creators." />
+    <meta name="twitter:image" content="https://mapflam.pages.dev/icons/logo-mapflam-share.png" />
+
+    <!-- SEO & Mobile -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="googlebot" content="noindex, nofollow" />
+    <meta name="author" content="MapFlam Contributors" />
+    <meta name="keywords" content="locator map, map maker, journalist tools, free map builder, location map, marker map" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="canonical" href="https://mapflam.pages.dev/" />
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
-
-    <!-- Preload fonts -->
+    <!-- Preload Fonts -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="preload"

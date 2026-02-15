@@ -1,14 +1,35 @@
 {
-  "name": "MapFlam",
+  "name": "MapFlam - Locator Map Builder",
   "short_name": "MapFlam",
-  "description": "Build locator maps for journalists and content creators",
+  "description": "A mobile-first app for making simple maps and locators. Designed for journalists and content creators.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#5422b0",
-  "background_color": "#5422b0",
   "orientation": "portrait-primary",
+  "theme_color": "#5422b0",
+  "background_color": "#ffffff",
+  "categories": ["productivity", "utilities"],
+  "screenshots": [
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "form_factor": "narrow"
+    }
+  ],
   "icons": [
+    {
+      "src": "/icons/logo-mapflam-favicon.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icons/apple-touch-icon.png",
       "sizes": "512x512",
@@ -17,9 +38,43 @@
     },
     {
       "src": "/icons/logo-mapflam-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/logo-mapflam-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create New Map",
+      "short_name": "New Map",
+      "description": "Start building a new locator map",
+      "url": "/?tab=create",
+      "icons": [
+        {
+          "src": "/icons/icon-newpin.svg",
+          "sizes": "192x192",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "View Saved Maps",
+      "short_name": "Saved",
+      "description": "View and edit your saved maps",
+      "url": "/?tab=saved",
+      "icons": [
+        {
+          "src": "/icons/apple-touch-icon.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

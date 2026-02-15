@@ -24,11 +24,12 @@
 |-------|------------|-------|
 | Framework | **Vite + Svelte 5** (TypeScript) | Reactive, typed, fast HMR |
 | Styling | **Native CSS variables** | No Tailwind; see color tokens below |
-| Maps | **Leaflet 1.9** | CartoDB, Stamen, OpenStreetMap tiles (no API keys) |
-| Geocoding | **Nominatim API** | Free; rate-limit: ~1 req/sec |
+| Maps | **Leaflet 1.9** | Multiple free tile providers (CartoDB, OSM, ESRI, OpenTopoMap) |
+| Geocoding | **Nominatim API** (primary) | Free, open-source; rate-limit ~1 req/sec |
+| Geocoding Fallback | **MapBox Geocoding** | Optional fallback when Nominatim empty; requires `VITE_MAPBOX_API_KEY` |
 | Export | **html2canvas** | DOM → PNG at format-dependent sizes |
 | State | **Svelte stores** | Global reactivity for markers, map state, UI |
-| Persistence | **localStorage** | JSON serialization; 5 maps max, 30-day expiry |
+| Persistence | **localStorage** | JSON serialization; 5 maps max, 30-day expiry; working state recovery |
 | Hosting | **Cloudflare Pages** | Root URL: mapflam.pages.dev |
 
 ---
@@ -37,23 +38,26 @@
 
 ```
 src/
-├── app.svelte                    # Root component (Create/Saved tabs)
+├── app.svelte                    # Root component (Create/Saved tabs, auto-save logic)
 ├── app.css                       # Global styles, CSS variables
 ├── main.ts                       # Vite entry point
+├── vite-env.d.ts                 # Vite environment type definitions
 └── lib/
-    ├── stores.ts                 # Reactive state (markers, map, UI)
-    ├── types.ts                  # TypeScript interfaces
+    ├── stores.ts                 # Reactive state (markers, map, UI, inset, search)
+    ├── types.ts                  # TypeScript interfaces, color palette, icon data
     ├── services/
-    │   ├── nominatim.ts          # Location search (debounced)
-    │   ├── export.ts             # PNG export via html2canvas
-    │   └── persistence.ts        # localStorage (save/load/delete/expiry)
+    │   ├── nominatim.ts          # Location search (Nominatim + MapBox fallback, cached, GPS parse)
+    │   ├── mapbox.ts             # MapBox Geocoding fallback (VITE_MAPBOX_API_KEY)
+    │   ├── export.ts             # PNG export via html2canvas, thumbnail generation
+    │   └── persistence.ts        # localStorage (save/load/delete/expiry, working state recovery)
     └── components/
-        ├── MapContainer.svelte   # Leaflet map instance
+        ├── MapContainer.svelte   # Leaflet map instance, marker rendering
         ├── RatioSelector.svelte  # 9:16, 1:1, 16:9 buttons
-        ├── BaseMapSelector.svelte # Basemap dropdown (thumbnails)
+        ├── BaseMapSelector.svelte # Basemap dropdown (6 options)
         ├── PinEditor.svelte      # Pin card (search, icons, sliders, labels)
-        ├── SearchBar.svelte      # Location search UI
-        ├── SavedTab.svelte       # Saved maps list
+        ├── SearchBar.svelte      # Location search UI with debounce
+        ├── SavedTab.svelte       # Saved maps list with thumbnails
+        ├── TwoFingerOverlay.svelte # Mobile gesture hint overlay
         └── InsetMapEditor.svelte # Inset map controls (Phase 2)
 
 static/
@@ -81,7 +85,7 @@ npm run preview          # Preview dist locally
 Core stores in `src/lib/stores.ts`:
 
 ```typescript
-// Map
+// Map instance & view
 export const leafletMap = writable<L.Map | null>(null);
 export const mapCenter = writable({ lat: 6.5244, lng: 3.3792 });  // Lagos default
 export const mapZoom = writable(12);
@@ -90,18 +94,29 @@ export const mapZoom = writable(12);
 export const markers = writable<Marker[]>([]);
 
 // UI
-export const selectedFormat = writable('square');      // 'square' | '16:9' | '9:16'
-export const selectedBaseMap = writable('positron');   // 'positron' | 'positron-nolabels' | 'toner'
-export const activeTab = writable('create');           // 'create' | 'saved'
-export const editingPinId = writable<string | null>(null); // Expanded pin card
+export const selectedFormat = writable<MapFormat>('square');      // 'square' | '16:9' | '9:16'
+export const selectedBaseMap = writable<BaseMap>('voyager');      // 6 options (see below)
+export const activeTab = writable<'create' | 'saved'>('create');  // 'create' | 'saved'
+export const editingPinId = writable<string | null>(null);        // Expanded pin card
 
-// Search (debounced)
+// Search state (debounced, cached)
 export const searchQuery = writable('');
 export const searchResults = writable<NominatimResult[]>([]);
+export const isSearching = writable(false);
+
+// Saved maps state
+export const savedMaps = writable<SavedMap[]>([]);
 
 // Inset (Phase 2)
 export const insetConfig = writable<InsetConfig>({ /* ... */ });
 export const insetLeafletMap = writable<L.Map | null>(null);
+
+// Derived stores
+export const pinCount = derived(markers, ($markers) => $markers.length);
+export const currentMapState = derived(
+  [mapCenter, mapZoom, markers, selectedFormat, selectedBaseMap],
+  ([$center, $zoom, $markers, $format, $baseMap]) => ({ /* ... */ })
+);
 ```
 
 Subscribe in components with `$store` syntax (reactive).
@@ -131,57 +146,154 @@ interface Marker {
 }
 ```
 
-### 2. Nominatim Search (Debounced)
+### 2. Nominatim Search with MapBox Fallback
 
 ```typescript
 // src/lib/services/nominatim.ts
 export async function searchLocations(query: string): Promise<NominatimResult[]> {
-  const params = new URLSearchParams({
-    q: query,
-    format: 'json',
-    limit: '5',
-    addressdetails: '1',
-  });
-  
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?${params}`,
-    { headers: { 'Accept-Language': 'en' } }
-  );
-  return response.json();
+  if (!query.trim()) return [];
+
+  // Check 5-minute cache first
+  const cached = CACHE.get(query);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.results;
+  }
+
+  try {
+    // Try Nominatim first
+    const params = new URLSearchParams({
+      q: query,
+      format: 'json',
+      limit: '5',
+      addressdetails: '1',
+    });
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params}`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    
+    let results: NominatimResult[] = await response.json();
+
+    // Fallback to MapBox if Nominatim returns empty
+    if (results.length === 0) {
+      results = await searchMapbox(query);  // Requires VITE_MAPBOX_API_KEY
+    }
+
+    // Cache results
+    CACHE.set(query, { results, timestamp: Date.now() });
+    return results;
+  } catch (error) {
+    // On error, try MapBox fallback
+    return await searchMapbox(query);
+  }
+}
+
+// GPS coordinate detection (e.g., "40.7128,-74.0060")
+export function parseGpsCoordinates(query: string): { lat: number; lng: number } | null {
+  const match = query.trim().match(/^([-+]?\d+\.?\d*)\s*,\s*([-+]?\d+\.?\d*)$/);
+  if (!match) return null;
+
+  const lat = parseFloat(match[1]);
+  const lng = parseFloat(match[2]);
+
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return null;
+  }
+
+  return { lat, lng };
 }
 ```
 
-**Important:** Debounce input at 300ms to respect rate limits (~1 req/sec).
+**Features:**
+- **Primary:** Nominatim (free, open-source; ~1 req/sec rate limit)
+- **Fallback:** MapBox Geocoding (when Nominatim empty; requires `VITE_MAPBOX_API_KEY` env var)
+- **Cache:** 5-minute TTL per query
+- **GPS:** Auto-detect coordinates from input (e.g., "40.7128,-74.0060")
+- **Debounce:** 300ms input debounce (in SearchBar component)
 
-### 3. Export (html2canvas)
+### 3. Export (html2canvas) & Thumbnails
 
 ```typescript
 // src/lib/services/export.ts
 export async function exportMap(
   containerSelector: string,
-  format: 'square' | '16:9' | '9:16'
+  format: MapFormat,
+  filename?: string
 ): Promise<void> {
-  const sizes = {
-    square: { width: 1080, height: 1080 },
-    '16:9': { width: 1920, height: 1080 },
-    '9:16': { width: 1080, height: 1920 },
-  };
-  
-  const canvas = await html2canvas(document.querySelector(containerSelector)!, {
-    width: sizes[format].width,
-    height: sizes[format].height,
-    scale: 2,
+  const container = document.querySelector(containerSelector) as HTMLElement;
+  if (!container) throw new Error(`Container not found: ${containerSelector}`);
+
+  const size = EXPORT_SIZES[format];
+  const containerRect = container.getBoundingClientRect();
+
+  // Calculate scale factor
+  const scaleX = size.width / containerRect.width;
+  const scaleY = size.height / containerRect.height;
+  const scale = Math.max(scaleX, scaleY);
+
+  // Wait for tiles to load
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  // Capture at high resolution
+  const capturedCanvas = await html2canvas(container, {
+    scale: scale,
     backgroundColor: '#ffffff',
+    logging: true,
+    useCORS: true,
+    allowTaint: true,
   });
+
+  // Create final canvas at exact export dimensions
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = size.width;
+  finalCanvas.height = size.height;
+  const ctx = finalCanvas.getContext('2d');
   
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size.width, size.height);
+  
+  // Center and draw captured canvas
+  const offsetX = (size.width - containerRect.width * scale) / 2;
+  const offsetY = (size.height - containerRect.height * scale) / 2;
+  ctx.drawImage(capturedCanvas, offsetX, offsetY, containerRect.width * scale, containerRect.height * scale);
+
+  // Download PNG
   const link = document.createElement('a');
-  link.href = canvas.toDataURL('image/png');
-  link.download = `mapflam_${format}_${Date.now()}.png`;
+  link.href = finalCanvas.toDataURL('image/png');
+  link.download = filename || `mapflam_${format}_${new Date().toISOString().split('T')[0]}.png`;
   link.click();
+}
+
+// Generate thumbnail: 102×102 PNG base64 (for SavedTab preview)
+export async function generateThumbnail(containerSelector: string): Promise<string> {
+  const container = document.querySelector(containerSelector);
+  if (!container) throw new Error(`Container not found: ${containerSelector}`);
+
+  // Wait for tiles to load and settle
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  const canvas = await html2canvas(container as HTMLElement, {
+    width: 102,
+    height: 102,
+    scale: 1.5,
+    backgroundColor: '#ffffff',
+    logging: false,
+    useCORS: true,
+    allowTaint: true,
+    ignoreElements: (element) => {
+      // Ignore Leaflet controls for cleaner thumbnail
+      const classList = (element as HTMLElement).classList;
+      return classList?.contains('leaflet-control') || classList?.contains('leaflet-control-attribution');
+    },
+  });
+
+  const dataUrl = canvas.toDataURL('image/png');
+  return dataUrl;
 }
 ```
 
-### 4. Persistence (localStorage)
+### 4. Persistence (localStorage) & Working State Recovery
 
 ```typescript
 // src/lib/services/persistence.ts
@@ -196,7 +308,17 @@ interface SavedMap {
     mapCenter: { lat: number; lng: number };
     mapZoom: number;
   };
-  thumbnail: string;  // Base64 64×64 PNG
+  pinCount: number;
+  thumbnail: string;  // Base64 102×102 PNG
+}
+
+interface WorkingState {
+  markers: Marker[];
+  selectedFormat: MapFormat;
+  selectedBaseMap: BaseMap;
+  mapCenter: { lat: number; lng: number };
+  mapZoom: number;
+  lastAutoSave: number;
 }
 
 export function saveMap(map: SavedMap): void {
@@ -210,9 +332,8 @@ export function loadSavedMaps(): SavedMap[] {
   const now = Date.now();
   const thirtyDays = 30 * 24 * 60 * 60 * 1000;
   
-  return saved
-    .filter((m: SavedMap) => (now - m.createdAt) < thirtyDays)
-    .sort((a: SavedMap, b: SavedMap) => b.createdAt - a.createdAt);
+  const valid = saved.filter((m: SavedMap) => (now - m.createdAt) < thirtyDays);
+  return valid.sort((a: SavedMap, b: SavedMap) => b.createdAt - a.createdAt);
 }
 
 export function deleteMap(id: string): void {
@@ -221,9 +342,35 @@ export function deleteMap(id: string): void {
     saved.filter((m: SavedMap) => m.id !== id)
   ));
 }
+
+// Auto-save & working state recovery
+export function saveWorkingState(state: WorkingState): void {
+  localStorage.setItem('mapflam_working_state', JSON.stringify(state));
+}
+
+export function loadWorkingState(): WorkingState | null {
+  const data = localStorage.getItem('mapflam_working_state');
+  return data ? JSON.parse(data) : null;
+}
+
+export function promoteWorkingStateToSavedMap(workingState: WorkingState): SavedMap {
+  return {
+    id: Date.now().toString(),
+    name: `Map ${(loadSavedMaps().length % 5) + 1}`,
+    createdAt: Date.now(),
+    state: { /* markers, format, baseMap, center, zoom */ },
+    pinCount: workingState.markers.length,
+    thumbnail: '', // Captured on explicit save
+  };
+}
 ```
 
-Auto-save debounced at 1 sec on any marker/format/baseMap change.
+**Features:**
+- **Auto-save:** Debounced at 2 seconds on marker/format/baseMap changes
+- **Working state:** Recovered on app launch if session was interrupted
+- **Promotion:** Auto-saved work promoted to saved map on app close (if >0 pins)
+- **Expiry:** Saved maps expire after 30 days
+- **Storage:** Max 5 maps in localStorage (~5MB)
 
 ---
 
@@ -256,13 +403,16 @@ Auto-save debounced at 1 sec on any marker/format/baseMap change.
 ### Tile Providers
 
 ```typescript
-// BASE_MAP_TILES
+// BASE_MAP_TILES (6 options in BASE_MAP_TILES from types.ts)
 positron: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+osm-standard: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 positron-nolabels: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png'
-toner: 'https://tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png'
+esri-satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+opentopomap: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'
 
 // INSET_MAP_TILES (Phase 2)
-positron-nolabels, watercolor, voyager
+positron, voyager, osm-standard
 ```
 
 ---
@@ -337,7 +487,8 @@ App will be live at `mapflam.pages.dev` (or custom domain if configured).
 
 ### Environment Variables
 
-None required for MVP. All APIs (Nominatim, tile providers) are public.
+- **`VITE_MAPBOX_API_KEY`** (optional): Required to enable MapBox Geocoding as fallback when Nominatim returns no results. If not provided, only Nominatim will be used for location search.
+- All tile providers are public (no keys needed).
 
 ---
 
@@ -353,20 +504,20 @@ app.svelte
     ├── MapContainer
     │   └── Leaflet map + markers
     ├── PinEditor (card, expanded/collapsed)
-    │   ├── SearchBar (location search)
-    │   ├── Icon selector
-    │   ├── Size slider
-    │   ├── Opacity slider
-    │   ├── Color picker
+    │   ├── SearchBar (location search with debounce)
+    │   ├── Icon selector (6 icon types)
+    │   ├── Size slider (1–5)
+    │   ├── Opacity slider (0–100)
+    │   ├── Color picker (6-color palette)
     │   └── Label controls (text, size, color, opacity, nudge)
-    ├── InsetMapToggle
+    ├── TwoFingerOverlay (mobile gesture hint)
     ├── InsetMapEditor (Phase 2, if enabled)
-    └── ExportButtons (Download, New Map)
+    └── Action buttons (Export PNG, New Map)
 
     {#if activeTab === 'saved'}
     └── SavedTab
         ├── Empty state (no maps)
-        └── Map list (thumbnail, name, timestamp, menu)
+        └── Map list (thumbnail, name, createdAt, edit/delete menu)
 ```
 
 ---
