@@ -277,6 +277,7 @@
       touchZoom: true,
       zoomSnap: 0,
       zoomDelta: 0.5,
+      wheelPxPerZoomLevel: L.Browser.mobile ? 60 : 30,
     });
 
     if (L.Browser.mobile) {
