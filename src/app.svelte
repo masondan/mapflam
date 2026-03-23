@@ -219,6 +219,7 @@
 
 <div class="app-container">
   <header class="app-header">
+    <flam-nav current="mapflam"></flam-nav>
     <div class="logo-container">
       <img src="/icons/logotype-mapflam-purple-trs.png" alt="MapFlam" class="logo" />
     </div>
@@ -343,12 +344,15 @@
   }
 
   .app-header {
+    display: flex;
+    align-items: center;
     padding: var(--spacing-md);
     border-bottom: 1px solid #999999;
     background-color: var(--color-white);
   }
 
   .logo-container {
+    flex: 1;
     display: flex;
     justify-content: center;
   }
