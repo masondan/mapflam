@@ -223,6 +223,7 @@
     <div class="logo-container">
       <img src="/icons/logotype-mapflam-purple-trs.png" alt="MapFlam" class="logo" />
     </div>
+    <div class="header-spacer"></div>
   </header>
 
   <nav class="tab-navigation">
@@ -358,8 +359,12 @@
   }
 
   .logo {
-    height: 36px;
+    height: 26px;
     width: auto;
+  }
+
+  .header-spacer {
+    width: 22px;
   }
 
   .tab-navigation {
