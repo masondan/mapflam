@@ -348,7 +348,7 @@
     display: flex;
     align-items: center;
     padding: var(--spacing-md);
-    border-bottom: 1px solid #999999;
+    border-bottom: 1px solid #e0e0e0;
     background-color: var(--color-white);
   }
 
