@@ -7,6 +7,15 @@
   font-style: normal;
 }
 
+/* Self-hosted Saira font */
+@font-face {
+  font-family: 'Saira';
+  src: url('/fonts/saira.ttf') format('truetype');
+  font-weight: 400 900;
+  font-display: swap;
+  font-style: normal;
+}
+
 /* Global styles for MapFlam */
 
 :root {
