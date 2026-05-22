@@ -4,7 +4,7 @@
   "description": "A mobile-first app for making simple maps and locators. Designed for journalists and content creators.",
   "start_url": "/",
   "scope": "/",
-  "display": "browser",
+  "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#5422b0",
   "background_color": "#5422b0",
