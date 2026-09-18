@@ -24,7 +24,7 @@
   let currentMarkers: any[] = [];
   let pinEditorRef: PinEditor;
   let currentFormat: string = 'square';
-  let currentBaseMap: string = 'positron';
+  let currentBaseMap: string = 'osm-standard';
   let currentCenter: any = { lat: 6.5244, lng: 3.3792 };
   let currentZoom: number = 12;
   let showNewMapModal = false;

@@ -12,7 +12,7 @@ export const markers = writable<Marker[]>([]);
 
 // UI state
 export const selectedFormat = writable<MapFormat>('square');
-export const selectedBaseMap = writable<BaseMap>('voyager');
+export const selectedBaseMap = writable<BaseMap>('osm-standard');
 export const activeTab = writable<'create' | 'saved'>('create');
 export const editingPinId = writable<string | null>(null);
 
@@ -22,7 +22,7 @@ export const insetConfig = writable<InsetConfig>({
   position: 'top-right',
   size: 'medium',
   borderColor: '#5422b0',
-  baseMap: 'positron',
+  baseMap: 'osm-standard',
   center: { lat: 6.5244, lng: 3.3792 },
   zoom: 5,
   spotlight: {

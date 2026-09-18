@@ -103,7 +103,7 @@
       }, { passive: true });
     }
 
-    let initialBaseMap: BaseMap = 'positron';
+    let initialBaseMap: BaseMap = 'osm-standard';
     const unsubBase = selectedBaseMap.subscribe((b) => {
       initialBaseMap = b;
     });

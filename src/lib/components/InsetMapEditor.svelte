@@ -49,7 +49,7 @@
     { id: 'bottom-left', icon: '/icons/icon-left-down-fill.svg' },
   ];
 
-  const baseMapOptions: InsetBaseMap[] = ['positron', 'voyager', 'osm-standard'];
+  const baseMapOptions: InsetBaseMap[] = ['osm-standard'];
 
   const SPOTLIGHT_SIZE_MAP: Record<1 | 2 | 3 | 4 | 5, number> = {
     1: 45,
@@ -883,14 +883,6 @@
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-  }
-
-  .thumb-preview[data-style='positron'] {
-    background-image: url('https://a.basemaps.cartocdn.com/light_all/2/2/0.png');
-  }
-
-  .thumb-preview[data-style='voyager'] {
-    background-image: url('https://a.basemaps.cartocdn.com/rastertiles/voyager/2/2/0.png');
   }
 
   .thumb-preview[data-style='osm-standard'] {

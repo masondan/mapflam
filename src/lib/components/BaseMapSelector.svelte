@@ -3,33 +3,18 @@
   import type { BaseMap } from '../types';
 
   const baseMaps: { label: string; value: BaseMap; thumbnailUrl: string }[] = [
-    { 
-      label: 'Positron', 
-      value: 'positron',
-      thumbnailUrl: 'https://a.basemaps.cartocdn.com/light_all/2/2/0.png'
-    },
-    { 
-      label: 'Voyager', 
-      value: 'voyager',
-      thumbnailUrl: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/2/2/0.png'
-    },
-    { 
-      label: 'OSM', 
+    {
+      label: 'OSM',
       value: 'osm-standard',
       thumbnailUrl: 'https://tile.openstreetmap.org/2/2/0.png'
     },
-    { 
-      label: 'Positron No Labels', 
-      value: 'positron-nolabels',
-      thumbnailUrl: 'https://a.basemaps.cartocdn.com/light_nolabels/2/2/0.png'
-    },
-    { 
-      label: 'Satellite', 
+    {
+      label: 'Satellite',
       value: 'esri-satellite',
       thumbnailUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/2/1/2'
     },
-    { 
-      label: 'OpenTopoMap', 
+    {
+      label: 'OpenTopoMap',
       value: 'opentopomap',
       thumbnailUrl: 'https://a.tile.opentopomap.org/2/2/0.png'
     },
