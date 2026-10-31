@@ -18,6 +18,21 @@
       value: 'opentopomap',
       thumbnailUrl: 'https://a.tile.opentopomap.org/2/2/0.png'
     },
+    {
+      label: 'Toner Lite',
+      value: 'toner-lite',
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/2/2/0.png'
+    },
+    {
+      label: 'Terrain',
+      value: 'terrain',
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/2/2/0.png'
+    },
+    {
+      label: 'Watercolor',
+      value: 'watercolor',
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/2/2/0.jpg'
+    },
   ];
 
   let isOpen = false;

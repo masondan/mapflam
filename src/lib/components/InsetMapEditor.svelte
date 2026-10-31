@@ -49,7 +49,7 @@
     { id: 'bottom-left', icon: '/icons/icon-left-down-fill.svg' },
   ];
 
-  const baseMapOptions: InsetBaseMap[] = ['osm-standard'];
+  const baseMapOptions: InsetBaseMap[] = ['osm-standard', 'toner-lite', 'terrain'];
 
   const SPOTLIGHT_SIZE_MAP: Record<1 | 2 | 3 | 4 | 5, number> = {
     1: 45,
@@ -364,11 +364,11 @@
     }
   }
 
-  $: if ($insetConfig.enabled && previewContainer && !previewMap) {
+  $: if ($insetConfig.enabled && isExpanded && previewContainer && !previewMap) {
     setTimeout(initPreviewMap, 50);
   }
 
-  $: if (!$insetConfig.enabled && previewMap) {
+  $: if ((!$insetConfig.enabled || !isExpanded) && previewMap) {
     destroyPreviewMap();
   }
 
@@ -887,6 +887,14 @@
 
   .thumb-preview[data-style='osm-standard'] {
     background-image: url('https://tile.openstreetmap.org/2/2/0.png');
+  }
+
+  .thumb-preview[data-style='toner-lite'] {
+    background-image: url('https://tiles.stadiamaps.com/tiles/stamen_toner_lite/2/2/0.png');
+  }
+
+  .thumb-preview[data-style='terrain'] {
+    background-image: url('https://tiles.stadiamaps.com/tiles/stamen_terrain/2/2/0.png');
   }
 
   .position-row {

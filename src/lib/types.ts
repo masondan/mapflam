@@ -4,12 +4,12 @@ export type IconType = 'pin1' | 'pin2' | 'pin3' | 'pin4' | 'pin5' | 'pin6';
 export type PinSize = 1 | 2 | 3 | 4 | 5; // 1=small, 5=large, 3=default
 export type LabelSize = 'small' | 'medium' | 'large';
 export type MapFormat = 'square' | '16:9' | '9:16';
-export type BaseMap = 'osm-standard' | 'esri-satellite' | 'opentopomap';
+export type BaseMap = 'osm-standard' | 'esri-satellite' | 'opentopomap' | 'toner-lite' | 'terrain' | 'watercolor';
 
 // Inset map types (Phase 2)
 export type InsetPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 export type InsetSize = 'small' | 'medium' | 'large';
-export type InsetBaseMap = 'osm-standard';
+export type InsetBaseMap = 'osm-standard' | 'toner-lite' | 'terrain';
 
 export interface InsetConfig {
   enabled: boolean;
@@ -145,6 +145,18 @@ export const BASE_MAP_TILES: Record<BaseMap, { url: string; attribution: string 
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors, © OpenTopoMap',
   },
+  'toner-lite': {
+    url: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps, © Stamen Design, © OpenStreetMap contributors',
+  },
+  'terrain': {
+    url: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps, © Stamen Design, © OpenStreetMap contributors',
+  },
+  'watercolor': {
+    url: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
+    attribution: '© Stadia Maps, © Stamen Design, © OpenStreetMap contributors',
+  },
 };
 
 // Inset map tile providers (simpler styles)
@@ -153,6 +165,16 @@ export const INSET_MAP_TILES: Record<InsetBaseMap, { url: string; attribution: s
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors',
     name: 'OSM Standard',
+  },
+  'toner-lite': {
+    url: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps, © Stamen Design, © OpenStreetMap contributors',
+    name: 'Toner Lite',
+  },
+  'terrain': {
+    url: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps, © Stamen Design, © OpenStreetMap contributors',
+    name: 'Terrain',
   },
 };
 
