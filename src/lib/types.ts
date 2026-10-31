@@ -134,16 +134,16 @@ export const LABEL_SIZES: Record<LabelSize, string> = {
 // Base map tile providers
 export const BASE_MAP_TILES: Record<BaseMap, { url: string; attribution: string }> = {
   'osm-standard': {
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© OpenStreetMap contributors',
+    url: 'https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps, © OpenStreetMap contributors',
   },
   'esri-satellite': {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© Esri, DigitalGlobe, Earthstar Geographics',
+    url: 'https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}{r}.jpg',
+    attribution: '© Stadia Maps, © Esri, © OpenStreetMap contributors',
   },
   'opentopomap': {
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '© OpenStreetMap contributors, © OpenTopoMap',
+    url: 'https://tiles.stadiamaps.com/tiles/alidade_bright/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps, © OpenMapTiles, © OpenStreetMap contributors',
   },
   'toner-lite': {
     url: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}{r}.png',
@@ -162,8 +162,8 @@ export const BASE_MAP_TILES: Record<BaseMap, { url: string; attribution: string 
 // Inset map tile providers (simpler styles)
 export const INSET_MAP_TILES: Record<InsetBaseMap, { url: string; attribution: string; name: string }> = {
   'osm-standard': {
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© OpenStreetMap contributors',
+    url: 'https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps, © OpenStreetMap contributors',
     name: 'OSM Standard',
   },
   'toner-lite': {

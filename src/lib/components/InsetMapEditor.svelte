@@ -886,15 +886,15 @@
   }
 
   .thumb-preview[data-style='osm-standard'] {
-    background-image: url('https://tile.openstreetmap.org/2/2/0.png');
+    background-image: url('https://tiles.stadiamaps.com/tiles/osm_bright/5/15/10.png');
   }
 
   .thumb-preview[data-style='toner-lite'] {
-    background-image: url('https://tiles.stadiamaps.com/tiles/stamen_toner_lite/2/2/0.png');
+    background-image: url('https://tiles.stadiamaps.com/tiles/stamen_toner_lite/5/15/10.png');
   }
 
   .thumb-preview[data-style='terrain'] {
-    background-image: url('https://tiles.stadiamaps.com/tiles/stamen_terrain/2/2/0.png');
+    background-image: url('https://tiles.stadiamaps.com/tiles/stamen_terrain/5/15/10.png');
   }
 
   .position-row {

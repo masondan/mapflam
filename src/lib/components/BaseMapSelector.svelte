@@ -4,34 +4,34 @@
 
   const baseMaps: { label: string; value: BaseMap; thumbnailUrl: string }[] = [
     {
-      label: 'OSM',
+      label: 'OSM Bright',
       value: 'osm-standard',
-      thumbnailUrl: 'https://tile.openstreetmap.org/2/2/0.png'
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/osm_bright/5/15/10.png'
     },
     {
       label: 'Satellite',
       value: 'esri-satellite',
-      thumbnailUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/2/1/2'
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/alidade_satellite/5/15/10.jpg'
     },
     {
-      label: 'OpenTopoMap',
+      label: 'Alidade',
       value: 'opentopomap',
-      thumbnailUrl: 'https://a.tile.opentopomap.org/2/2/0.png'
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/alidade_bright/5/15/10.png'
     },
     {
       label: 'Toner Lite',
       value: 'toner-lite',
-      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/2/2/0.png'
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/5/15/10.png'
     },
     {
       label: 'Terrain',
       value: 'terrain',
-      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/2/2/0.png'
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/5/15/10.png'
     },
     {
-      label: 'Watercolor',
+      label: 'Watercolour',
       value: 'watercolor',
-      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/2/2/0.jpg'
+      thumbnailUrl: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/5/15/10.jpg'
     },
   ];
 
