@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type L from 'leaflet';
   import type { SavedMap } from './lib/types';
   import {
     activeTab,
@@ -9,6 +10,7 @@
     mapCenter,
     mapZoom,
     insetConfig,
+    leafletMap,
   } from './lib/stores';
   import { loadSavedMaps, saveMap, loadWorkingState, saveWorkingState, clearWorkingState, promoteWorkingStateToSavedMap } from './lib/services/persistence';
   import { exportMap, generateThumbnail } from './lib/services/export';
@@ -19,6 +21,7 @@
   import PinEditor from './lib/components/PinEditor.svelte';
   import SavedTab from './lib/components/SavedTab.svelte';
   import InsetMapEditor from './lib/components/InsetMapEditor.svelte';
+  import ZoomControl from './lib/components/ZoomControl.svelte';
 
   let currentTab: 'create' | 'saved' = 'create';
   let currentMarkers: any[] = [];
@@ -27,6 +30,7 @@
   let currentBaseMap: string = 'osm-standard';
   let currentCenter: any = { lat: 6.5244, lng: 3.3792 };
   let currentZoom: number = 12;
+  let currentLeafletMap: L.Map | null = null;
   let showNewMapModal = false;
   let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
   const AUTO_SAVE_DEBOUNCE = 2000; // 2 seconds
@@ -43,6 +47,7 @@
   $: selectedBaseMap.subscribe((b) => (currentBaseMap = b));
   $: mapCenter.subscribe((c) => (currentCenter = c));
   $: mapZoom.subscribe((z) => (currentZoom = z));
+  $: leafletMap.subscribe((m) => (currentLeafletMap = m));
 
   $: hasPins = currentMarkers.length > 0;
 
@@ -254,6 +259,8 @@
         <div class="map-section" id="map-container">
           <MapContainer />
         </div>
+
+        <ZoomControl map={currentLeafletMap} />
 
         <PinEditor bind:this={pinEditorRef} />
 

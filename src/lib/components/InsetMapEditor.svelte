@@ -12,6 +12,7 @@
     type InsetBaseMap,
   } from '../types';
   import TwoFingerOverlay from './TwoFingerOverlay.svelte';
+  import ZoomControl from './ZoomControl.svelte';
 
   let previewContainer: HTMLDivElement;
   let previewMap: L.Map | null = null;
@@ -452,6 +453,9 @@
         <div bind:this={previewContainer} class="preview-map-inner"></div>
         <TwoFingerOverlay visible={showTwoFingerHint} />
       </div>
+      <div class="preview-zoom-controls">
+        <ZoomControl map={previewMap} />
+      </div>
     </div>
 
     <div class="section">
@@ -827,6 +831,10 @@
   .preview-map-inner {
     width: 100%;
     height: 100%;
+  }
+
+  .preview-zoom-controls {
+    margin-top: 10px;
   }
 
   .dropdown-header {
