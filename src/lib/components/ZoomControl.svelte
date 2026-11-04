@@ -85,6 +85,7 @@
     cursor: pointer;
     padding: 0;
     transition: all 200ms ease;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .zoom-btn:active:not(:disabled) {
