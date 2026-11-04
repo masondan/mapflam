@@ -20,6 +20,10 @@
   let currentFormat: MapFormat = 'square';
   let currentInsetConfig: InsetConfig;
   let previousInsetSize: string | null = null;
+  // Guards against echo: when the map's own pan/zoom writes its position back
+  // into the stores, we must not let the store subscription call setView()
+  // again on the map that just produced that position (causes a visible flash).
+  let isInternalUpdate = false;
 
   const SPOTLIGHT_SIZE_MAP: Record<1 | 2 | 3 | 4 | 5, number> = {
     1: 30,
@@ -54,8 +58,11 @@
     
     const unsubCenter = mapCenter.subscribe((c) => {
       initialCenter = c;
-      // Update map view when mapCenter changes (e.g., from geolocation)
-      if (map) {
+      // Update map view when mapCenter changes (e.g., from geolocation).
+      // Skip when this change originated from the map's own moveend handler
+      // below, otherwise we re-apply setView on a map that's already there,
+      // causing a visible flash during pan/pinch-zoom.
+      if (map && !isInternalUpdate) {
         map.setView([c.lat, c.lng], initialZoom, { animate: false });
       }
     });
@@ -117,9 +124,11 @@
       clearTimeout(panZoomTimeout);
       panZoomTimeout = setTimeout(() => {
         if (map) {
+          isInternalUpdate = true;
           const center = map.getCenter();
           mapCenter.set({ lat: center.lat, lng: center.lng });
           mapZoom.set(map.getZoom());
+          isInternalUpdate = false;
         }
       }, 300);
     });
